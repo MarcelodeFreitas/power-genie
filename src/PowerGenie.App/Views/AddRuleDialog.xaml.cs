@@ -26,9 +26,9 @@ public partial class AddRuleDialog : Window
         _availablePlans = availablePlans;
         PlanComboBox.ItemsSource = _availablePlans;
 
-        SearchSourceComboBox.ItemsSource = new[] { "Installed Programs", "Running Processes" };
-        SearchSourceComboBox.SelectedIndex = 0;
-
+        // Populated before SearchSourceComboBox.SelectedIndex is set below — that assignment
+        // fires SelectionChanged synchronously, and its handler (RefreshResultsList) reads
+        // these two fields.
         _installedProgramItems = InstalledAppsReader.GetInstalledApps()
             .Select(app => new SearchResultItem(app.DisplayName, app.ExePath))
             .ToList();
@@ -41,7 +41,8 @@ public partial class AddRuleDialog : Window
             .OrderBy(item => item.DisplayName)
             .ToList();
 
-        RefreshResultsList();
+        SearchSourceComboBox.ItemsSource = new[] { "Installed Programs", "Running Processes" };
+        SearchSourceComboBox.SelectedIndex = 0;
     }
 
     private static SearchResultItem? TryDescribe(Process process)

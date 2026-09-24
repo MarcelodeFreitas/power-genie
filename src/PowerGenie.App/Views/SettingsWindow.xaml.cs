@@ -88,8 +88,7 @@ public partial class SettingsWindow : Window
         _config.StartWithWindows = StartWithWindowsCheckBox.IsChecked == true;
         _configStore.Save(_config);
 
-        var exePath = Environment.ProcessPath ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
-        _autoStartManager.SetEnabled(_config.StartWithWindows, exePath);
+        _autoStartManager.SetEnabled(_config.StartWithWindows, Environment.ProcessPath!);
 
         ConfigSaved?.Invoke(_config);
         Close();

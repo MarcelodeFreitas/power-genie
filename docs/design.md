@@ -1,6 +1,6 @@
 # Power Genie — Design
 
-Status: draft, pending review.
+Status: implemented (v1).
 
 ## Problem / intent
 

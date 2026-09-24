@@ -1,16 +1,22 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using PowerGenie.App.Models;
+using PowerGenie.App.Services;
 
 namespace PowerGenie.App.Views;
 
 public partial class AddRuleDialog : Window
 {
-    private sealed record RunningProcessOption(string DisplayName, string ExeName);
+    private sealed record SearchResultItem(string DisplayName, string ExeNameOrPath);
 
     private readonly List<PowerPlan> _availablePlans;
+    private readonly List<SearchResultItem> _installedProgramItems;
+    private readonly List<SearchResultItem> _runningProcessItems;
+
     private string? _selectedExeName;
+    private bool _suppressManualPathTextChanged;
 
     public AppRule? CreatedRule { get; private set; }
 
@@ -20,16 +26,25 @@ public partial class AddRuleDialog : Window
         _availablePlans = availablePlans;
         PlanComboBox.ItemsSource = _availablePlans;
 
-        RunningProcessComboBox.ItemsSource = Process.GetProcesses()
-            .Select(TryDescribe)
-            .Where(option => option is not null)
-            .Select(option => option!)
-            .DistinctBy(option => option.ExeName)
-            .OrderBy(option => option.DisplayName)
+        SearchSourceComboBox.ItemsSource = new[] { "Installed Programs", "Running Processes" };
+        SearchSourceComboBox.SelectedIndex = 0;
+
+        _installedProgramItems = InstalledAppsReader.GetInstalledApps()
+            .Select(app => new SearchResultItem(app.DisplayName, app.ExePath))
             .ToList();
+
+        _runningProcessItems = Process.GetProcesses()
+            .Select(TryDescribe)
+            .Where(item => item is not null)
+            .Select(item => item!)
+            .DistinctBy(item => item.ExeNameOrPath)
+            .OrderBy(item => item.DisplayName)
+            .ToList();
+
+        RefreshResultsList();
     }
 
-    private static RunningProcessOption? TryDescribe(Process process)
+    private static SearchResultItem? TryDescribe(Process process)
     {
         // MainModule is only used for a nicer label here; ProcessName-based naming (matching
         // ProcessMonitorService.GetExeName) is the fallback so elevated/protected processes
@@ -44,7 +59,33 @@ public partial class AddRuleDialog : Window
             exeName = process.ProcessName + ".exe";
         }
 
-        return new RunningProcessOption($"{process.ProcessName} ({exeName})", exeName);
+        return new SearchResultItem($"{process.ProcessName} ({exeName})", exeName);
+    }
+
+    private void RefreshResultsList()
+    {
+        var source = SearchSourceComboBox.SelectedIndex == 1 ? _runningProcessItems : _installedProgramItems;
+        var query = SearchTextBox.Text;
+
+        IEnumerable<SearchResultItem> filtered = source;
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            filtered = source.Where(item => item.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase));
+        }
+
+        ResultsListBox.ItemsSource = filtered.ToList();
+    }
+
+    private void SearchSourceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshResultsList();
+
+    private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e) => RefreshResultsList();
+
+    private void ResultsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ResultsListBox.SelectedItem is SearchResultItem item)
+        {
+            SetSelectedExe(item.ExeNameOrPath);
+        }
     }
 
     private void BrowseButton_Click(object sender, RoutedEventArgs e)
@@ -59,46 +100,71 @@ public partial class AddRuleDialog : Window
 
         if (dialog.ShowDialog() == true)
         {
-            SetSelectedExe(Path.GetFileName(dialog.FileName));
+            SetSelectedExe(dialog.FileName);
         }
     }
 
-    private void RunningProcessComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    private void ManualPathTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (RunningProcessComboBox.SelectedItem is RunningProcessOption option)
+        if (_suppressManualPathTextChanged)
         {
-            SetSelectedExe(option.ExeName);
+            return;
         }
-    }
 
-    private void SetSelectedExe(string exeName)
-    {
-        _selectedExeName = exeName;
-        SelectedExeText.Text = $"Selected: {exeName}";
-        if (string.IsNullOrWhiteSpace(DisplayNameTextBox.Text))
+        var text = ManualPathTextBox.Text;
+        _selectedExeName = string.IsNullOrWhiteSpace(text) ? null : Path.GetFileName(text);
+
+        if (!string.IsNullOrWhiteSpace(_selectedExeName) && string.IsNullOrWhiteSpace(DisplayNameTextBox.Text))
         {
-            DisplayNameTextBox.Text = Path.GetFileNameWithoutExtension(exeName);
+            DisplayNameTextBox.Text = Path.GetFileNameWithoutExtension(_selectedExeName);
         }
 
         UpdateOkButtonState();
     }
 
-    private void PlanComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
-        => UpdateOkButtonState();
+    // Accepts either a bare exe name (from the running-process list) or a full path
+    // (from Installed Programs or Browse). Only the bare filename is ever used to build the
+    // rule — RuleResolver matches against ProcessMonitorService.GetExeName's bare exe names —
+    // but the full path is still shown in the text box for the user's own confirmation.
+    private void SetSelectedExe(string exeNameOrPath)
+    {
+        var normalized = Path.GetFileName(exeNameOrPath);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return;
+        }
 
-    private void DisplayNameTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
-        => UpdateOkButtonState();
+        _selectedExeName = normalized;
+
+        if (ManualPathTextBox.Text != exeNameOrPath)
+        {
+            _suppressManualPathTextChanged = true;
+            ManualPathTextBox.Text = exeNameOrPath;
+            _suppressManualPathTextChanged = false;
+        }
+
+        if (string.IsNullOrWhiteSpace(DisplayNameTextBox.Text))
+        {
+            DisplayNameTextBox.Text = Path.GetFileNameWithoutExtension(normalized);
+        }
+
+        UpdateOkButtonState();
+    }
+
+    private void PlanComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateOkButtonState();
+
+    private void DisplayNameTextBox_TextChanged(object sender, TextChangedEventArgs e) => UpdateOkButtonState();
 
     private void UpdateOkButtonState()
     {
-        OkButton.IsEnabled = _selectedExeName is not null
+        OkButton.IsEnabled = !string.IsNullOrWhiteSpace(_selectedExeName)
             && !string.IsNullOrWhiteSpace(DisplayNameTextBox.Text)
             && PlanComboBox.SelectedItem is not null;
     }
 
     private void OkButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedExeName is null || PlanComboBox.SelectedItem is not PowerPlan selectedPlan)
+        if (string.IsNullOrWhiteSpace(_selectedExeName) || PlanComboBox.SelectedItem is not PowerPlan selectedPlan)
         {
             return;
         }

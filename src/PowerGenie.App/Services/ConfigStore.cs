@@ -31,8 +31,19 @@ public sealed class ConfigStore
             return new AppConfig();
         }
 
-        var json = File.ReadAllText(_filePath);
-        return JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
+        try
+        {
+            var json = File.ReadAllText(_filePath);
+            return JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
+        }
+        catch (JsonException)
+        {
+            // A malformed config (e.g. from a crash mid-write) must not take the app down on
+            // every future launch. Preserve the bad file for inspection and start fresh.
+            var badFilePath = _filePath + ".bad";
+            File.Move(_filePath, badFilePath, overwrite: true);
+            return new AppConfig();
+        }
     }
 
     public void Save(AppConfig config)
@@ -44,6 +55,11 @@ public sealed class ConfigStore
         }
 
         var json = JsonSerializer.Serialize(config, JsonOptions);
-        File.WriteAllText(_filePath, json);
+
+        // Write to a temp file and move it into place so a crash or power loss mid-write
+        // can't leave a half-written, unparseable config.json behind.
+        var tempFilePath = _filePath + ".tmp";
+        File.WriteAllText(tempFilePath, json);
+        File.Move(tempFilePath, _filePath, overwrite: true);
     }
 }

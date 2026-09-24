@@ -5,8 +5,11 @@ namespace PowerGenie.App.Services;
 
 public static class PowerPlanListParser
 {
+    // Matches by structure (GUID, then "(name)", then an optional trailing "*") rather than
+    // the literal English "Power Scheme GUID:" label, which powercfg translates on
+    // non-English Windows installs.
     private static readonly Regex LineRegex = new(
-        @"Power Scheme GUID:\s*(?<guid>[0-9a-fA-F-]{36})\s*\((?<name>.+?)\)\s*(?<active>\*)?\s*$",
+        @"(?<guid>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\s*\((?<name>.+?)\)\s*(?<active>\*)?\s*$",
         RegexOptions.Compiled);
 
     public static List<PowerPlan> Parse(string powercfgListOutput)

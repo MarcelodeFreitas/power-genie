@@ -31,15 +31,20 @@ public partial class AddRuleDialog : Window
 
     private static RunningProcessOption? TryDescribe(Process process)
     {
+        // MainModule is only used for a nicer label here; ProcessName-based naming (matching
+        // ProcessMonitorService.GetExeName) is the fallback so elevated/protected processes
+        // still show up and can be picked, instead of silently disappearing from the list.
+        string exeName;
         try
         {
-            var exeName = process.MainModule?.ModuleName;
-            return exeName is null ? null : new RunningProcessOption($"{process.ProcessName} ({exeName})", exeName);
+            exeName = process.MainModule?.ModuleName ?? process.ProcessName + ".exe";
         }
         catch
         {
-            return null;
+            exeName = process.ProcessName + ".exe";
         }
+
+        return new RunningProcessOption($"{process.ProcessName} ({exeName})", exeName);
     }
 
     private void BrowseButton_Click(object sender, RoutedEventArgs e)

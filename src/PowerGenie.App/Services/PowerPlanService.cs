@@ -3,15 +3,15 @@ using PowerGenie.App.Models;
 
 namespace PowerGenie.App.Services;
 
-public sealed class PowerPlanService
+public class PowerPlanService
 {
-    public List<PowerPlan> GetAvailablePlans()
+    public virtual List<PowerPlan> GetAvailablePlans()
     {
         var output = RunPowercfg("/list");
         return PowerPlanListParser.Parse(output);
     }
 
-    public void SetActivePlan(Guid planGuid)
+    public virtual void SetActivePlan(Guid planGuid)
     {
         RunPowercfg($"/setactive {planGuid:D}");
     }
@@ -21,6 +21,7 @@ public sealed class PowerPlanService
         var startInfo = new ProcessStartInfo("powercfg", arguments)
         {
             RedirectStandardOutput = true,
+            RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
@@ -29,7 +30,15 @@ public sealed class PowerPlanService
             ?? throw new InvalidOperationException("Failed to start powercfg.exe");
 
         var output = process.StandardOutput.ReadToEnd();
+        var error = process.StandardError.ReadToEnd();
         process.WaitForExit();
+
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"powercfg {arguments} failed (exit code {process.ExitCode}): {error}{output}".Trim());
+        }
+
         return output;
     }
 }

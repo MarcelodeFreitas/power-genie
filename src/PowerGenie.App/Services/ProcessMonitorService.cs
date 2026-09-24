@@ -10,7 +10,6 @@ public sealed class ProcessMonitorService : IDisposable
     private readonly System.Timers.Timer _timer;
 
     private AppConfig _config;
-    private readonly List<PowerPlan> _availablePlans;
     private Guid? _lastAppliedPlanGuid;
 
     public ProcessMonitorService(
@@ -22,7 +21,6 @@ public sealed class ProcessMonitorService : IDisposable
         _powerPlanService = powerPlanService;
         _logger = logger;
         _config = initialConfig;
-        _availablePlans = _powerPlanService.GetAvailablePlans();
 
         _timer = new System.Timers.Timer(pollInterval.TotalMilliseconds) { AutoReset = true };
         _timer.Elapsed += (_, _) => Tick();
@@ -34,17 +32,19 @@ public sealed class ProcessMonitorService : IDisposable
 
     public void Stop() => _timer.Stop();
 
-    private void Tick()
+    // Fetched fresh on every tick (not cached at construction) so a power plan created or
+    // deleted while the app is running is picked up without needing a restart.
+    internal void Tick()
     {
         try
         {
+            var availablePlans = _powerPlanService.GetAvailablePlans();
+
             var runningExeNames = Process.GetProcesses()
-                .Select(TryGetExeName)
-                .Where(name => name is not null)
-                .Select(name => name!)
+                .Select(GetExeName)
                 .ToList();
 
-            var availableGuids = new HashSet<Guid>(_availablePlans.Select(p => p.Guid));
+            var availableGuids = new HashSet<Guid>(availablePlans.Select(p => p.Guid));
 
             var resolvedPlanGuid = RuleResolver.ResolveActivePlan(
                 runningExeNames,
@@ -64,18 +64,10 @@ public sealed class ProcessMonitorService : IDisposable
         }
     }
 
-    private static string? TryGetExeName(Process process)
-    {
-        try
-        {
-            return process.MainModule?.ModuleName;
-        }
-        catch
-        {
-            // Access denied on elevated/system processes is expected — skip them.
-            return null;
-        }
-    }
+    // ProcessName is always readable for any live process, unlike MainModule (which throws
+    // for elevated/system processes the current user can't inspect) — so rules can match
+    // apps running as administrator instead of silently never firing for them.
+    internal static string GetExeName(Process process) => process.ProcessName + ".exe";
 
     public void Dispose()
     {

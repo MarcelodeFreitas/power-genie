@@ -48,11 +48,29 @@ public class ConfigStoreTests : IDisposable
         Assert.Equal("bambu-studio.exe", loaded.Rules[0].ExeName);
     }
 
+    [Fact]
+    public void Load_returns_default_config_and_does_not_throw_when_the_file_is_malformed()
+    {
+        File.WriteAllText(_tempFilePath, "{ this is not valid json ][");
+        var store = new ConfigStore(_tempFilePath);
+
+        var config = store.Load();
+
+        Assert.Equal(Guid.Empty, config.DefaultPlanGuid);
+        Assert.Empty(config.Rules);
+    }
+
     public void Dispose()
     {
         if (File.Exists(_tempFilePath))
         {
             File.Delete(_tempFilePath);
+        }
+
+        var badFilePath = _tempFilePath + ".bad";
+        if (File.Exists(badFilePath))
+        {
+            File.Delete(badFilePath);
         }
     }
 }

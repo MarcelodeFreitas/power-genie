@@ -37,4 +37,22 @@ public class PowerPlanListParserTests
 
         Assert.All(plans, p => Assert.NotEqual(Guid.Empty, p.Guid));
     }
+
+    [Fact]
+    public void Parses_schemes_even_when_the_scheme_label_is_localized()
+    {
+        // On non-English Windows, powercfg /list prints a translated label instead of
+        // "Power Scheme GUID:" (e.g. German "GUID des Energieschemas:"). The parser must
+        // not depend on that literal English text.
+        const string localizedOutput =
+            "Vorhandene Energieschemas (* Aktiv)\r\n" +
+            "-----------------------------------\r\n" +
+            "GUID des Energieschemas: a1841308-3541-4fab-bc81-f71556f20b4a  (Energiesparmodus) *\r\n";
+
+        var plans = PowerPlanListParser.Parse(localizedOutput);
+
+        var plan = Assert.Single(plans);
+        Assert.Equal("Energiesparmodus", plan.Name);
+        Assert.True(plan.IsActive);
+    }
 }

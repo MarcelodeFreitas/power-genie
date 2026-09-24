@@ -1,0 +1,30 @@
+## .NET / Visual Studio
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.userosscache
+*.sln.docstates
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]uild/
+
+## Rider / VS Code
+.idea/
+.vscode/
+
+## OS junk
+Thumbs.db
+.DS_Store
+
+## Publish output
+publish/
+*.publish.xml
+
+## App runtime data (never commit real user config)
+appsettings.local.json

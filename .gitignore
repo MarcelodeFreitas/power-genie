@@ -28,3 +28,6 @@ publish/
 
 ## App runtime data (never commit real user config)
 appsettings.local.json
+
+## Local planning workspace (ledger, briefs, review packages)
+.superpowers/

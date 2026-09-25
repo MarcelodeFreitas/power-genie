@@ -13,7 +13,7 @@
 
         <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,12">
             <TextBlock Text="Default power plan:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <ComboBox x:Name="DefaultPlanComboBox" Width="260" DisplayMemberPath="Name"/>
+            <ComboBox x:Name="DefaultPlanComboBox" Width="260" DisplayMemberPath="Name" SelectionChanged="DefaultPlanComboBox_SelectionChanged"/>
         </StackPanel>
 
         <DataGrid x:Name="RulesGrid" Grid.Row="1" AutoGenerateColumns="False"
@@ -30,7 +30,8 @@
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Grid.Row="3" Margin="0,16,0,0" HorizontalAlignment="Right">
-            <CheckBox x:Name="StartWithWindowsCheckBox" Content="Start with Windows" VerticalAlignment="Center" Margin="0,0,16,0"/>
+            <CheckBox x:Name="StartWithWindowsCheckBox" Content="Start with Windows" VerticalAlignment="Center" Margin="0,0,16,0"
+                      Checked="StartWithWindowsCheckBox_CheckedChanged" Unchecked="StartWithWindowsCheckBox_CheckedChanged"/>
             <Button x:Name="SaveButton" Content="Save" Width="90" Click="SaveButton_Click"/>
         </StackPanel>
     </Grid>

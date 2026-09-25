@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows;
 using PowerGenie.App.Models;
 using PowerGenie.App.Services;
@@ -15,6 +16,8 @@ public partial class SettingsWindow : Window
 
     private List<PowerPlan> _availablePlans = new();
     private AppConfig _config = new();
+    private bool _isLoading;
+    private bool _hasUnsavedChanges;
 
     public event Action<AppConfig>? ConfigSaved;
 
@@ -31,16 +34,40 @@ public partial class SettingsWindow : Window
 
     private void LoadState()
     {
-        _availablePlans = _powerPlanService.GetAvailablePlans();
-        _config = _configStore.Load();
+        _isLoading = true;
+        try
+        {
+            _availablePlans = _powerPlanService.GetAvailablePlans();
+            _config = _configStore.Load();
 
-        DefaultPlanComboBox.ItemsSource = _availablePlans;
-        DefaultPlanComboBox.SelectedItem = _availablePlans.FirstOrDefault(p => p.Guid == _config.DefaultPlanGuid)
-            ?? _availablePlans.FirstOrDefault();
+            DefaultPlanComboBox.ItemsSource = _availablePlans;
+            DefaultPlanComboBox.SelectedItem = _availablePlans.FirstOrDefault(p => p.Guid == _config.DefaultPlanGuid)
+                ?? _availablePlans.FirstOrDefault();
 
-        StartWithWindowsCheckBox.IsChecked = _config.StartWithWindows;
+            StartWithWindowsCheckBox.IsChecked = _config.StartWithWindows;
 
-        RefreshRuleRows();
+            RefreshRuleRows();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void DefaultPlanComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!_isLoading)
+        {
+            _hasUnsavedChanges = true;
+        }
+    }
+
+    private void StartWithWindowsCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
+    {
+        if (!_isLoading)
+        {
+            _hasUnsavedChanges = true;
+        }
     }
 
     private void RefreshRuleRows()
@@ -65,6 +92,7 @@ public partial class SettingsWindow : Window
         if (dialog.ShowDialog() == true && dialog.CreatedRule is not null)
         {
             _config.Rules.Add(dialog.CreatedRule);
+            _hasUnsavedChanges = true;
             RefreshRuleRows();
         }
     }
@@ -74,11 +102,18 @@ public partial class SettingsWindow : Window
         if (RulesGrid.SelectedItem is RuleRow selected)
         {
             _config.Rules.RemoveAll(r => r.ExeName == selected.ExeName && r.PlanGuid == selected.PlanGuid);
+            _hasUnsavedChanges = true;
             RefreshRuleRows();
         }
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
+    {
+        PerformSave();
+        Close();
+    }
+
+    private void PerformSave()
     {
         if (DefaultPlanComboBox.SelectedItem is PowerPlan selectedDefault)
         {
@@ -91,6 +126,34 @@ public partial class SettingsWindow : Window
         _autoStartManager.SetEnabled(_config.StartWithWindows, Environment.ProcessPath!);
 
         ConfigSaved?.Invoke(_config);
-        Close();
+        _hasUnsavedChanges = false;
+    }
+
+    // Closing via the window's X button (or Alt+F4) must not silently discard rules/settings
+    // the user added but never explicitly saved — that gap is exactly what caused a rule to
+    // vanish without the user realizing it never took effect.
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        if (_hasUnsavedChanges)
+        {
+            var result = System.Windows.MessageBox.Show(
+                "You have unsaved changes. Save before closing?",
+                "Power Genie",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Cancel)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            if (result == MessageBoxResult.Yes)
+            {
+                PerformSave();
+            }
+        }
+
+        base.OnClosing(e);
     }
 }

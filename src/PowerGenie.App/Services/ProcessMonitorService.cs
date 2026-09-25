@@ -43,11 +43,7 @@ public sealed class ProcessMonitorService : IDisposable
         try
         {
             var availablePlans = _powerPlanService.GetAvailablePlans();
-
-            var runningExeNames = Process.GetProcesses()
-                .Select(GetExeName)
-                .ToList();
-
+            var runningExeNames = GetRunningExeNames();
             var availableGuids = new HashSet<Guid>(availablePlans.Select(p => p.Guid));
 
             var resolvedPlanGuid = RuleResolver.ResolveActivePlan(
@@ -73,6 +69,27 @@ public sealed class ProcessMonitorService : IDisposable
     // for elevated/system processes the current user can't inspect) — so rules can match
     // apps running as administrator instead of silently never firing for them.
     internal static string GetExeName(Process process) => process.ProcessName + ".exe";
+
+    // Process wraps a native OS handle and is IDisposable; Process.GetProcesses() returns one
+    // per running process (typically 300-400+) on every tick, forever, so each one is disposed
+    // right after its name is read instead of leaking handles for the app's whole lifetime.
+    private static List<string> GetRunningExeNames()
+    {
+        var names = new List<string>();
+        foreach (var process in Process.GetProcesses())
+        {
+            try
+            {
+                names.Add(GetExeName(process));
+            }
+            finally
+            {
+                process.Dispose();
+            }
+        }
+
+        return names;
+    }
 
     public void Dispose()
     {

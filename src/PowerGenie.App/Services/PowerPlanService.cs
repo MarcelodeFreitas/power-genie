@@ -1,10 +1,15 @@
 using System.Diagnostics;
+using System.IO;
 using PowerGenie.App.Models;
 
 namespace PowerGenie.App.Services;
 
 public class PowerPlanService
 {
+    // Resolved once, not relying on PATH search order at call time: a same-named
+    // "powercfg.exe" earlier on PATH would otherwise run instead of the real one.
+    private static readonly string PowercfgPath = Path.Combine(Environment.SystemDirectory, "powercfg.exe");
+
     public virtual List<PowerPlan> GetAvailablePlans()
     {
         var output = RunPowercfg("/list");
@@ -18,7 +23,7 @@ public class PowerPlanService
 
     private static string RunPowercfg(string arguments)
     {
-        var startInfo = new ProcessStartInfo("powercfg", arguments)
+        var startInfo = new ProcessStartInfo(PowercfgPath, arguments)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,

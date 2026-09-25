@@ -25,6 +25,9 @@ public static class RuleResolver
             }
         }
 
-        return defaultPlanGuid;
+        // Guid.Empty is the sentinel ProcessMonitorService.Tick treats as "don't touch the
+        // active plan" - returning it for a stale/deleted default avoids retrying a doomed
+        // powercfg call (and logging a failure) on every single tick forever.
+        return availablePlanGuids.Contains(defaultPlanGuid) ? defaultPlanGuid : Guid.Empty;
     }
 }

@@ -77,6 +77,23 @@ public class RuleResolverTests
     }
 
     [Fact]
+    public void Returns_guid_empty_when_the_default_plan_no_longer_exists()
+    {
+        // Guid.Empty is the sentinel ProcessMonitorService already treats as "do nothing" -
+        // returning it here means a stale/invalid default can't cause a doomed powercfg call
+        // (and the resulting log spam) on every single tick forever.
+        var deletedDefault = Guid.NewGuid();
+
+        var result = RuleResolver.ResolveActivePlan(
+            runningExeNames: new[] { "notepad.exe" },
+            rules: new List<AppRule>(),
+            availablePlanGuids: AllPlans,
+            defaultPlanGuid: deletedDefault);
+
+        Assert.Equal(Guid.Empty, result);
+    }
+
+    [Fact]
     public void Exe_name_matching_is_case_insensitive()
     {
         var rules = new List<AppRule>

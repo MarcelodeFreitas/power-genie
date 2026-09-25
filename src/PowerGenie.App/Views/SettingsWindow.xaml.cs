@@ -63,11 +63,8 @@ public partial class SettingsWindow : Window
         _planColorRows = _availablePlans.Select(plan =>
         {
             var hex = PlanColorPalette.GetColorForPlan(plan.Guid, _config.PlanColors, planGuidsInOrder);
-            var selected = PlanColorPalette.Colors.FirstOrDefault(c => c.Hex == hex);
-            if (selected == default)
-            {
-                selected = PlanColorPalette.Colors[^1];
-            }
+            var selected = PlanColorPalette.Colors.FirstOrDefault(c => c.Hex == hex)
+                ?? PlanColorPalette.Colors[^1];
 
             return new PlanColorRow
             {
@@ -126,19 +123,41 @@ public partial class SettingsWindow : Window
         if (dialog.ShowDialog() == true && dialog.CreatedRule is not null)
         {
             _config.Rules.Add(dialog.CreatedRule);
-            _hasUnsavedChanges = true;
             RefreshRuleRows();
+            PerformSave();
+        }
+    }
+
+    private void EditRuleButton_Click(object sender, RoutedEventArgs e)
+    {
+        var index = RulesGrid.SelectedIndex;
+        if (index < 0 || index >= _config.Rules.Count)
+        {
+            return;
+        }
+
+        var dialog = new AddRuleDialog(_availablePlans, _config.Rules[index]) { Owner = this };
+        if (dialog.ShowDialog() == true && dialog.CreatedRule is not null)
+        {
+            _config.Rules[index] = dialog.CreatedRule;
+            RefreshRuleRows();
+            PerformSave();
         }
     }
 
     private void RemoveRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        if (RulesGrid.SelectedItem is RuleRow selected)
+        // Index-based, not content-matching: two identical rules (same exe + plan) would
+        // otherwise both be removed by a single click instead of just the selected one.
+        var index = RulesGrid.SelectedIndex;
+        if (index < 0 || index >= _config.Rules.Count)
         {
-            _config.Rules.RemoveAll(r => r.ExeName == selected.ExeName && r.PlanGuid == selected.PlanGuid);
-            _hasUnsavedChanges = true;
-            RefreshRuleRows();
+            return;
         }
+
+        _config.Rules.RemoveAt(index);
+        RefreshRuleRows();
+        PerformSave();
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)

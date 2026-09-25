@@ -6,6 +6,6 @@ public sealed class PlanColorRow
 {
     public required Guid PlanGuid { get; init; }
     public required string PlanName { get; init; }
-    public List<(string Name, string Hex)> ColorOptions { get; } = PlanColorPalette.Colors.ToList();
-    public required (string Name, string Hex) SelectedColor { get; set; }
+    public List<PaletteColor> ColorOptions { get; } = PlanColorPalette.Colors.ToList();
+    public required PaletteColor SelectedColor { get; set; }
 }

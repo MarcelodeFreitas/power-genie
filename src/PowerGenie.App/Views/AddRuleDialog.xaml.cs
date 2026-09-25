@@ -20,7 +20,9 @@ public partial class AddRuleDialog : Window
 
     public AppRule? CreatedRule { get; private set; }
 
-    public AddRuleDialog(List<PowerPlan> availablePlans)
+    // existingRule: when set, pre-fills the dialog so an existing rule's exe, display name,
+    // and plan can be edited instead of only ever creating a brand new rule.
+    public AddRuleDialog(List<PowerPlan> availablePlans, AppRule? existingRule = null)
     {
         InitializeComponent();
         _availablePlans = availablePlans;
@@ -43,6 +45,20 @@ public partial class AddRuleDialog : Window
 
         SearchSourceComboBox.ItemsSource = new[] { "Installed Programs", "Running Processes" };
         SearchSourceComboBox.SelectedIndex = 0;
+
+        if (existingRule is not null)
+        {
+            Title = "Edit rule";
+            _selectedExeName = existingRule.ExeName;
+
+            _suppressManualPathTextChanged = true;
+            ManualPathTextBox.Text = existingRule.ExeName;
+            _suppressManualPathTextChanged = false;
+
+            DisplayNameTextBox.Text = existingRule.DisplayName;
+            PlanComboBox.SelectedItem = _availablePlans.FirstOrDefault(p => p.Guid == existingRule.PlanGuid);
+            UpdateOkButtonState();
+        }
     }
 
     private static SearchResultItem? TryDescribe(Process process)

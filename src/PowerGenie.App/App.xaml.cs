@@ -52,9 +52,31 @@ public partial class App : Application
         {
             _currentConfig = config;
             _monitor!.UpdateConfig(config);
+
+            // Re-color assignments for the plan that's already active don't trigger
+            // ActivePlanChanged (nothing about the active plan itself changed), so the icon
+            // would otherwise only pick up a new color the next time the plan actually
+            // switches. Refresh it immediately against whatever the OS reports as active now.
+            RefreshTrayIconForCurrentPlan();
         };
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
+    }
+
+    private void RefreshTrayIconForCurrentPlan()
+    {
+        var availablePlans = _powerPlanService!.GetAvailablePlans();
+        var activePlan = availablePlans.FirstOrDefault(p => p.IsActive);
+        if (activePlan is null)
+        {
+            return;
+        }
+
+        var planColors = _currentConfig?.PlanColors ?? new Dictionary<Guid, string>();
+        var colorHex = PlanColorPalette.GetColorForPlan(
+            activePlan.Guid, planColors, availablePlans.Select(p => p.Guid).ToList());
+
+        _trayIconManager?.UpdateActivePlan(activePlan.Name, colorHex);
     }
 
     // Fires on the monitor's timer thread, not the UI thread — NotifyIcon must only be

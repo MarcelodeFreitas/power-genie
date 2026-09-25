@@ -8,7 +8,9 @@ A Windows tray utility that automatically switches your active power plan based 
 
 ## Why
 
-Most of the time your PC doesn't need to run flat out, so it sits on **Power saver**. Then you open something like a slicer, a game, or a render job that actually needs the CPU/GPU, and it's easy to forget to switch plans until the fans are already screaming. Power Genie watches for the apps you care about and switches to **High performance** (or any plan you pick) the moment they start, then switches back the moment they close. Set it up once and forget about it.
+Most of my day is replying to emails, watching a video, writing. None of that needs real processing power, and for those tasks I want my PC to be as quiet as possible, so I keep it on **Power saver**. Then I open something like a slicer for 3D prints, and it's easy to forget to switch plans until the fans are already spinning up loud because the PC is starved for CPU/GPU.
+
+Power Genie watches for the apps you actually care about and switches to whatever plan makes sense the moment they start, then switches back the moment they close. Power saver as the default is just what fits my own use case. The tool doesn't care what you pick: if your day-to-day needs more headroom, set your default to Balanced or High performance instead and use a rule to drop to Power saver for the one app where you want it quiet. Set it up once for however you actually work, and forget about it.
 
 ## Features
 

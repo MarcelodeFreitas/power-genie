@@ -1,7 +1,7 @@
 <Window x:Class="PowerGenie.App.Views.AddRuleDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Add rule" Height="440" Width="440"
+        Title="Add rule" Height="440" Width="500"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
     <Grid Margin="12">
         <Grid.RowDefinitions>
@@ -15,7 +15,7 @@
 
         <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,8">
             <ComboBox x:Name="SearchSourceComboBox" Width="140" SelectionChanged="SearchSourceComboBox_SelectionChanged"/>
-            <TextBox x:Name="SearchTextBox" Width="240" Margin="8,0,0,0"
+            <TextBox x:Name="SearchTextBox" Width="296" Margin="8,0,0,0"
                      VerticalContentAlignment="Center" TextChanged="SearchTextBox_TextChanged"/>
         </StackPanel>
 
@@ -24,18 +24,18 @@
 
         <StackPanel Orientation="Horizontal" Grid.Row="2" Margin="0,8,0,0">
             <TextBlock Text="or a direct path:" VerticalAlignment="Center" Width="90"/>
-            <TextBox x:Name="ManualPathTextBox" Width="230" TextChanged="ManualPathTextBox_TextChanged"/>
+            <TextBox x:Name="ManualPathTextBox" Width="260" TextChanged="ManualPathTextBox_TextChanged"/>
             <Button x:Name="BrowseButton" Content="Browse..." Width="80" Margin="8,0,0,0" Click="BrowseButton_Click"/>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Grid.Row="3" Margin="0,12,0,0">
             <TextBlock Text="Display name:" VerticalAlignment="Center" Width="90"/>
-            <TextBox x:Name="DisplayNameTextBox" Width="230" TextChanged="DisplayNameTextBox_TextChanged"/>
+            <TextBox x:Name="DisplayNameTextBox" Width="260" TextChanged="DisplayNameTextBox_TextChanged"/>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Grid.Row="4" Margin="0,8,0,0">
             <TextBlock Text="Power plan:" VerticalAlignment="Center" Width="90"/>
-            <ComboBox x:Name="PlanComboBox" Width="230" DisplayMemberPath="Name" SelectionChanged="PlanComboBox_SelectionChanged"/>
+            <ComboBox x:Name="PlanComboBox" Width="260" DisplayMemberPath="Name" SelectionChanged="PlanComboBox_SelectionChanged"/>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Grid.Row="5" HorizontalAlignment="Right" Margin="0,12,0,0">

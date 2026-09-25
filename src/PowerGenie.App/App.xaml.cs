@@ -24,6 +24,14 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
+        if (WindowsThemeDetector.IsDarkModeEnabled())
+        {
+            Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri("Theme/DarkTheme.xaml", UriKind.Relative)
+            });
+        }
+
         _configStore = new ConfigStore(ConfigStore.GetDefaultFilePath());
         _powerPlanService = new PowerPlanService();
         _autoStartManager = new AutoStartManager();

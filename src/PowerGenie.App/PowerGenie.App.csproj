@@ -9,10 +9,15 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>PowerGenie.App</RootNamespace>
     <AssemblyName>PowerGenie</AssemblyName>
+    <ApplicationIcon>Assets\PowerGenie.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="PowerGenie.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\PowerGenie.ico" />
   </ItemGroup>
 
 </Project>

@@ -15,7 +15,7 @@ public sealed class TrayIconManager : IDisposable
 
         _notifyIcon = new NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = LoadAppIcon(),
             Text = "Power Genie",
             ContextMenuStrip = contextMenu,
             Visible = false
@@ -28,5 +28,14 @@ public sealed class TrayIconManager : IDisposable
     {
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
+    }
+
+    private static System.Drawing.Icon LoadAppIcon()
+    {
+        // Extracted from the executable itself (embedded via <ApplicationIcon> in the csproj),
+        // so it stays in sync with the .exe icon and works from a single-file publish too.
+        var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+        var icon = exePath is not null ? System.Drawing.Icon.ExtractAssociatedIcon(exePath) : null;
+        return icon ?? System.Drawing.SystemIcons.Application;
     }
 }

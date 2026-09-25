@@ -36,6 +36,10 @@ public class ConfigStoreTests : IDisposable
                     DisplayName = "Bambu Studio",
                     PlanGuid = Guid.Parse("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c")
                 }
+            },
+            PlanColors = new Dictionary<Guid, string>
+            {
+                [Guid.Parse("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c")] = "#C62828"
             }
         };
 
@@ -46,6 +50,7 @@ public class ConfigStoreTests : IDisposable
         Assert.False(loaded.StartWithWindows);
         Assert.Single(loaded.Rules);
         Assert.Equal("bambu-studio.exe", loaded.Rules[0].ExeName);
+        Assert.Equal("#C62828", loaded.PlanColors[Guid.Parse("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c")]);
     }
 
     [Fact]

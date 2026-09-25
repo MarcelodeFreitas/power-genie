@@ -14,6 +14,7 @@ public partial class App : Application
     private AutoStartManager? _autoStartManager;
     private SettingsWindow? _settingsWindow;
     private FileLogger? _logger;
+    private Models.AppConfig? _currentConfig;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -28,9 +29,10 @@ public partial class App : Application
         _autoStartManager = new AutoStartManager();
         var logger = _logger;
 
-        var config = _configStore.Load();
+        _currentConfig = _configStore.Load();
 
-        _monitor = new ProcessMonitorService(_powerPlanService, logger, config, TimeSpan.FromSeconds(3));
+        _monitor = new ProcessMonitorService(_powerPlanService, logger, _currentConfig, TimeSpan.FromSeconds(3));
+        _monitor.ActivePlanChanged += OnActivePlanChanged;
         _monitor.Start();
 
         _trayIconManager = new TrayIconManager(OpenSettings);
@@ -46,9 +48,26 @@ public partial class App : Application
         }
 
         _settingsWindow = new SettingsWindow(_configStore!, _powerPlanService!, _autoStartManager!);
-        _settingsWindow.ConfigSaved += config => _monitor!.UpdateConfig(config);
+        _settingsWindow.ConfigSaved += config =>
+        {
+            _currentConfig = config;
+            _monitor!.UpdateConfig(config);
+        };
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
+    }
+
+    // Fires on the monitor's timer thread, not the UI thread — NotifyIcon must only be
+    // touched from the thread that created it, so this hops back via the Dispatcher.
+    private void OnActivePlanChanged(Guid planGuid, IReadOnlyList<Models.PowerPlan> availablePlans)
+    {
+        var plan = availablePlans.FirstOrDefault(p => p.Guid == planGuid);
+        var planName = plan?.Name ?? "Unknown plan";
+        var planColors = _currentConfig?.PlanColors ?? new Dictionary<Guid, string>();
+        var colorHex = PlanColorPalette.GetColorForPlan(
+            planGuid, planColors, availablePlans.Select(p => p.Guid).ToList());
+
+        Dispatcher.Invoke(() => _trayIconManager?.UpdateActivePlan(planName, colorHex));
     }
 
     protected override void OnExit(ExitEventArgs e)

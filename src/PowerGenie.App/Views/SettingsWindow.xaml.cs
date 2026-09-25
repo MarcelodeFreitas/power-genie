@@ -16,6 +16,7 @@ public partial class SettingsWindow : Window
 
     private List<PowerPlan> _availablePlans = new();
     private AppConfig _config = new();
+    private List<PlanColorRow> _planColorRows = new();
     private bool _isLoading;
     private bool _hasUnsavedChanges;
 
@@ -47,10 +48,43 @@ public partial class SettingsWindow : Window
             StartWithWindowsCheckBox.IsChecked = _config.StartWithWindows;
 
             RefreshRuleRows();
+            RefreshPlanColorRows();
         }
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private void RefreshPlanColorRows()
+    {
+        var planGuidsInOrder = _availablePlans.Select(p => p.Guid).ToList();
+
+        _planColorRows = _availablePlans.Select(plan =>
+        {
+            var hex = PlanColorPalette.GetColorForPlan(plan.Guid, _config.PlanColors, planGuidsInOrder);
+            var selected = PlanColorPalette.Colors.FirstOrDefault(c => c.Hex == hex);
+            if (selected == default)
+            {
+                selected = PlanColorPalette.Colors[^1];
+            }
+
+            return new PlanColorRow
+            {
+                PlanGuid = plan.Guid,
+                PlanName = plan.Name,
+                SelectedColor = selected
+            };
+        }).ToList();
+
+        PlanColorsItemsControl.ItemsSource = _planColorRows;
+    }
+
+    private void PlanColorComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!_isLoading)
+        {
+            _hasUnsavedChanges = true;
         }
     }
 
@@ -121,6 +155,12 @@ public partial class SettingsWindow : Window
         }
 
         _config.StartWithWindows = StartWithWindowsCheckBox.IsChecked == true;
+
+        foreach (var row in _planColorRows)
+        {
+            _config.PlanColors[row.PlanGuid] = row.SelectedColor.Hex;
+        }
+
         _configStore.Save(_config);
 
         _autoStartManager.SetEnabled(_config.StartWithWindows, Environment.ProcessPath!);

@@ -12,6 +12,10 @@ public sealed class ProcessMonitorService : IDisposable
     private AppConfig _config;
     private Guid? _lastAppliedPlanGuid;
 
+    // Carries the already-fetched plan list along so subscribers (the tray icon) don't need
+    // a second powercfg call just to look up the new plan's name.
+    public event Action<Guid, IReadOnlyList<PowerPlan>>? ActivePlanChanged;
+
     public ProcessMonitorService(
         PowerPlanService powerPlanService,
         FileLogger logger,
@@ -56,6 +60,7 @@ public sealed class ProcessMonitorService : IDisposable
             {
                 _powerPlanService.SetActivePlan(resolvedPlanGuid);
                 _lastAppliedPlanGuid = resolvedPlanGuid;
+                ActivePlanChanged?.Invoke(resolvedPlanGuid, availablePlans);
             }
         }
         catch (Exception ex)

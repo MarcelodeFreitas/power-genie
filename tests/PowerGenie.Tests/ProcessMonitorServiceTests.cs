@@ -56,4 +56,47 @@ public class ProcessMonitorServiceTests
 
         Assert.Equal(2, fakeService.CallCount);
     }
+
+    [Fact]
+    public void Tick_raises_ActivePlanChanged_when_it_switches_to_a_new_plan()
+    {
+        var targetPlan = Guid.Parse("a1841308-3541-4fab-bc81-f71556f20b4a");
+        var availablePlans = new List<PowerPlan> { new(targetPlan, "Power saver", false) };
+        var fakeService = new FakePowerPlanService(availablePlans);
+        var logger = new FileLogger(Path.Combine(Path.GetTempPath(), $"power-genie-monitor-test-{Guid.NewGuid()}.txt"));
+        var config = new AppConfig { DefaultPlanGuid = targetPlan };
+
+        using var monitor = new ProcessMonitorService(fakeService, logger, config, TimeSpan.FromMinutes(10));
+        Guid? raisedPlanGuid = null;
+        IReadOnlyList<PowerPlan>? raisedPlans = null;
+        monitor.ActivePlanChanged += (guid, plans) =>
+        {
+            raisedPlanGuid = guid;
+            raisedPlans = plans;
+        };
+
+        monitor.Tick();
+
+        Assert.Equal(targetPlan, raisedPlanGuid);
+        Assert.Equal(availablePlans, raisedPlans);
+    }
+
+    [Fact]
+    public void Tick_does_not_raise_ActivePlanChanged_when_the_plan_does_not_change()
+    {
+        var targetPlan = Guid.Parse("a1841308-3541-4fab-bc81-f71556f20b4a");
+        var availablePlans = new List<PowerPlan> { new(targetPlan, "Power saver", false) };
+        var fakeService = new FakePowerPlanService(availablePlans, availablePlans);
+        var logger = new FileLogger(Path.Combine(Path.GetTempPath(), $"power-genie-monitor-test-{Guid.NewGuid()}.txt"));
+        var config = new AppConfig { DefaultPlanGuid = targetPlan };
+
+        using var monitor = new ProcessMonitorService(fakeService, logger, config, TimeSpan.FromMinutes(10));
+        monitor.Tick();
+
+        var raiseCount = 0;
+        monitor.ActivePlanChanged += (_, _) => raiseCount++;
+        monitor.Tick();
+
+        Assert.Equal(0, raiseCount);
+    }
 }

@@ -20,6 +20,8 @@
         <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,12">
             <TextBlock Text="Default power plan:" VerticalAlignment="Center" Margin="0,0,8,0"/>
             <ComboBox x:Name="DefaultPlanComboBox" Width="260" DisplayMemberPath="Name" SelectionChanged="DefaultPlanComboBox_SelectionChanged"/>
+            <Button x:Name="SyncPlansButton" Content="Sync power plans" Width="120" Margin="8,0,0,0" Click="SyncPlansButton_Click"
+                    ToolTip="The list of power plans is checked once a day automatically. Just created or deleted one in Windows? Click here to see it right away."/>
         </StackPanel>
 
         <DataGrid x:Name="RulesGrid" Grid.Row="1" AutoGenerateColumns="False"

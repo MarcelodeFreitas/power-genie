@@ -22,6 +22,10 @@ public partial class SettingsWindow : Window
 
     public event Action<AppConfig>? ConfigSaved;
 
+    // Lets App.xaml.cs tell the running ProcessMonitorService to refresh its own cached plan
+    // list too, so a manual sync here takes effect immediately instead of waiting up to a day.
+    public event Action? PlansSyncRequested;
+
     public SettingsWindow(ConfigStore configStore, PowerPlanService powerPlanService, AutoStartManager autoStartManager)
     {
         InitializeComponent();
@@ -143,6 +147,32 @@ public partial class SettingsWindow : Window
             RefreshRuleRows();
             PerformSave();
         }
+    }
+
+    // Re-reads the plan list without touching _config or reloading it from disk, so any
+    // unsaved edits (a rule just added, a color not yet saved) survive a sync click.
+    private void SyncPlansButton_Click(object sender, RoutedEventArgs e)
+    {
+        var previousDefaultGuid = (DefaultPlanComboBox.SelectedItem as PowerPlan)?.Guid ?? _config.DefaultPlanGuid;
+
+        _availablePlans = _powerPlanService.GetAvailablePlans();
+
+        _isLoading = true;
+        try
+        {
+            DefaultPlanComboBox.ItemsSource = _availablePlans;
+            DefaultPlanComboBox.SelectedItem = _availablePlans.FirstOrDefault(p => p.Guid == previousDefaultGuid)
+                ?? _availablePlans.FirstOrDefault();
+
+            RefreshRuleRows();
+            RefreshPlanColorRows();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+
+        PlansSyncRequested?.Invoke();
     }
 
     private void RemoveRuleButton_Click(object sender, RoutedEventArgs e)

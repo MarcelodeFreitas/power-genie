@@ -59,6 +59,7 @@ public partial class App : Application
             // switches. Refresh it immediately against whatever the OS reports as active now.
             RefreshTrayIconForCurrentPlan();
         };
+        _settingsWindow.PlansSyncRequested += () => _monitor!.RefreshAvailablePlans();
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
     }

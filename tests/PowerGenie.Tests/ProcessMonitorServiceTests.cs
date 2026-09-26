@@ -42,17 +42,64 @@ public class ProcessMonitorServiceTests
         }
     }
 
+    // Refreshing the plan list means shelling out to powercfg, which is rarely needed (the
+    // user almost never creates/deletes a Windows power plan while the app is running) — so
+    // it's cached and only re-fetched once a day, or on demand via RefreshAvailablePlans
+    // (wired to a "Sync power plans" button in Settings). A fake clock lets tests control
+    // elapsed time without waiting a real day.
     [Fact]
-    public void Tick_refetches_available_plans_on_every_run_instead_of_caching_them_once()
+    public void Tick_does_not_refetch_available_plans_before_the_refresh_interval_elapses()
     {
-        var fakeService = new FakePowerPlanService(new List<PowerPlan>(), new List<PowerPlan>());
+        var fakeService = new FakePowerPlanService(new List<PowerPlan>());
+        var logger = new FileLogger(Path.Combine(Path.GetTempPath(), $"power-genie-monitor-test-{Guid.NewGuid()}.txt"));
+        var config = new AppConfig { DefaultPlanGuid = Guid.Empty };
+        var now = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        using var monitor = new ProcessMonitorService(
+            fakeService, logger, config, TimeSpan.FromMinutes(10),
+            plansRefreshInterval: TimeSpan.FromDays(1),
+            utcNowProvider: () => now);
+
+        monitor.Tick();
+        now = now.AddHours(23);
+        monitor.Tick();
+
+        // One call from the constructor's initial fetch; the refresh interval hasn't elapsed.
+        Assert.Equal(1, fakeService.CallCount);
+    }
+
+    [Fact]
+    public void Tick_refetches_available_plans_once_the_refresh_interval_elapses()
+    {
+        var fakeService = new FakePowerPlanService(new List<PowerPlan>());
+        var logger = new FileLogger(Path.Combine(Path.GetTempPath(), $"power-genie-monitor-test-{Guid.NewGuid()}.txt"));
+        var config = new AppConfig { DefaultPlanGuid = Guid.Empty };
+        var now = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        using var monitor = new ProcessMonitorService(
+            fakeService, logger, config, TimeSpan.FromMinutes(10),
+            plansRefreshInterval: TimeSpan.FromDays(1),
+            utcNowProvider: () => now);
+
+        monitor.Tick();
+        now = now.AddDays(1).AddSeconds(1);
+        monitor.Tick();
+
+        Assert.Equal(2, fakeService.CallCount);
+    }
+
+    [Fact]
+    public void RefreshAvailablePlans_forces_an_immediate_refetch_regardless_of_the_interval()
+    {
+        var fakeService = new FakePowerPlanService(new List<PowerPlan>());
         var logger = new FileLogger(Path.Combine(Path.GetTempPath(), $"power-genie-monitor-test-{Guid.NewGuid()}.txt"));
         var config = new AppConfig { DefaultPlanGuid = Guid.Empty };
 
-        using var monitor = new ProcessMonitorService(fakeService, logger, config, TimeSpan.FromMinutes(10));
+        using var monitor = new ProcessMonitorService(
+            fakeService, logger, config, TimeSpan.FromMinutes(10),
+            plansRefreshInterval: TimeSpan.FromDays(1));
 
-        monitor.Tick();
-        monitor.Tick();
+        monitor.RefreshAvailablePlans();
 
         Assert.Equal(2, fakeService.CallCount);
     }

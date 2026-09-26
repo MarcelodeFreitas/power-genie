@@ -124,9 +124,9 @@ public partial class SettingsWindow : Window
     private void AddRuleButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new AddRuleDialog(_availablePlans) { Owner = this };
-        if (dialog.ShowDialog() == true && dialog.CreatedRule is not null)
+        if (dialog.ShowDialog() == true && dialog.CreatedRules.Count > 0)
         {
-            _config.Rules.Add(dialog.CreatedRule);
+            _config.Rules.AddRange(dialog.CreatedRules);
             RefreshRuleRows();
             PerformSave();
         }
@@ -141,9 +141,9 @@ public partial class SettingsWindow : Window
         }
 
         var dialog = new AddRuleDialog(_availablePlans, _config.Rules[index]) { Owner = this };
-        if (dialog.ShowDialog() == true && dialog.CreatedRule is not null)
+        if (dialog.ShowDialog() == true && dialog.CreatedRules.Count > 0)
         {
-            _config.Rules[index] = dialog.CreatedRule;
+            _config.Rules[index] = dialog.CreatedRules[0];
             RefreshRuleRows();
             PerformSave();
         }

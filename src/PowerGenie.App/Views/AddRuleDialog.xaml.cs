@@ -14,11 +14,17 @@ public partial class AddRuleDialog : Window
     private readonly List<PowerPlan> _availablePlans;
     private readonly List<SearchResultItem> _installedProgramItems;
     private readonly List<SearchResultItem> _runningProcessItems;
+    private readonly bool _isEditMode;
 
     private string? _selectedExeName;
     private bool _suppressManualPathTextChanged;
 
-    public AppRule? CreatedRule { get; private set; }
+    // Populated instead of _selectedExeName when 2+ apps are picked at once (via list
+    // multi-select or browsing multiple files). Each entry becomes its own rule on OK, all
+    // pointing at the one chosen plan. Never used in edit mode - editing is always one rule.
+    private List<(string ExeName, string DisplayName)> _multiSelection = new();
+
+    public IReadOnlyList<AppRule> CreatedRules { get; private set; } = Array.Empty<AppRule>();
 
     // existingRule: when set, pre-fills the dialog so an existing rule's exe, display name,
     // and plan can be edited instead of only ever creating a brand new rule.
@@ -26,6 +32,7 @@ public partial class AddRuleDialog : Window
     {
         InitializeComponent();
         _availablePlans = availablePlans;
+        _isEditMode = existingRule is not null;
         PlanComboBox.ItemsSource = _availablePlans;
 
         // Populated before SearchSourceComboBox.SelectedIndex is set below — that assignment
@@ -99,9 +106,26 @@ public partial class AddRuleDialog : Window
 
     private void ResultsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ResultsListBox.SelectedItem is SearchResultItem item)
+        // Editing is always exactly one rule, regardless of how many items get selected.
+        var selected = ResultsListBox.SelectedItems.Cast<SearchResultItem>().ToList();
+        if (_isEditMode)
         {
-            SetSelectedExe(item.ExeNameOrPath);
+            if (selected.Count > 0)
+            {
+                SetSelectedExe(selected[0].ExeNameOrPath);
+            }
+
+            return;
+        }
+
+        if (selected.Count >= 2)
+        {
+            SetMultiSelection(selected.Select(item => ToRuleSource(item.ExeNameOrPath)).ToList());
+        }
+        else if (selected.Count == 1)
+        {
+            ClearMultiSelection();
+            SetSelectedExe(selected[0].ExeNameOrPath);
         }
     }
 
@@ -112,11 +136,22 @@ public partial class AddRuleDialog : Window
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Filter = "Executable files (*.exe)|*.exe",
-            Title = "Select application"
+            Title = "Select application",
+            Multiselect = !_isEditMode
         };
 
-        if (dialog.ShowDialog() == true)
+        if (dialog.ShowDialog() != true)
         {
+            return;
+        }
+
+        if (!_isEditMode && dialog.FileNames.Length >= 2)
+        {
+            SetMultiSelection(dialog.FileNames.Select(ToRuleSource).ToList());
+        }
+        else
+        {
+            ClearMultiSelection();
             SetSelectedExe(dialog.FileName);
         }
     }
@@ -127,6 +162,8 @@ public partial class AddRuleDialog : Window
         {
             return;
         }
+
+        ClearMultiSelection();
 
         var text = ManualPathTextBox.Text;
         _selectedExeName = string.IsNullOrWhiteSpace(text) ? null : Path.GetFileName(text);
@@ -168,12 +205,57 @@ public partial class AddRuleDialog : Window
         UpdateOkButtonState();
     }
 
+    private static (string ExeName, string DisplayName) ToRuleSource(string exeNameOrPath)
+    {
+        var exeName = Path.GetFileName(exeNameOrPath);
+        return (exeName, Path.GetFileNameWithoutExtension(exeName));
+    }
+
+    // A single shared Display Name field doesn't make sense across several different apps, so
+    // multi-selection replaces it with a notice and derives each rule's name from its own exe,
+    // and disables the single-item path field entirely while active.
+    private void SetMultiSelection(List<(string ExeName, string DisplayName)> items)
+    {
+        _multiSelection = items;
+        _selectedExeName = null;
+
+        DisplayNameTextBox.Visibility = Visibility.Collapsed;
+        MultiSelectionNoticeText.Visibility = Visibility.Visible;
+        MultiSelectionNoticeText.Text = $"{items.Count} apps selected. Each will use its own name.";
+
+        ManualPathTextBox.IsEnabled = false;
+
+        UpdateOkButtonState();
+    }
+
+    private void ClearMultiSelection()
+    {
+        if (_multiSelection.Count == 0)
+        {
+            return;
+        }
+
+        _multiSelection = new List<(string, string)>();
+
+        DisplayNameTextBox.Visibility = Visibility.Visible;
+        MultiSelectionNoticeText.Visibility = Visibility.Collapsed;
+        ManualPathTextBox.IsEnabled = true;
+    }
+
     private void PlanComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateOkButtonState();
 
     private void DisplayNameTextBox_TextChanged(object sender, TextChangedEventArgs e) => UpdateOkButtonState();
 
     private void UpdateOkButtonState()
     {
+        if (_multiSelection.Count > 0)
+        {
+            OkButton.Content = $"Add {_multiSelection.Count} rules";
+            OkButton.IsEnabled = PlanComboBox.SelectedItem is not null;
+            return;
+        }
+
+        OkButton.Content = _isEditMode ? "Save" : "OK";
         OkButton.IsEnabled = !string.IsNullOrWhiteSpace(_selectedExeName)
             && !string.IsNullOrWhiteSpace(DisplayNameTextBox.Text)
             && PlanComboBox.SelectedItem is not null;
@@ -181,16 +263,39 @@ public partial class AddRuleDialog : Window
 
     private void OkButton_Click(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(_selectedExeName) || PlanComboBox.SelectedItem is not PowerPlan selectedPlan)
+        if (PlanComboBox.SelectedItem is not PowerPlan selectedPlan)
         {
             return;
         }
 
-        CreatedRule = new AppRule
+        if (_multiSelection.Count > 0)
         {
-            ExeName = _selectedExeName,
-            DisplayName = DisplayNameTextBox.Text,
-            PlanGuid = selectedPlan.Guid
+            CreatedRules = _multiSelection
+                .Select(item => new AppRule
+                {
+                    ExeName = item.ExeName,
+                    DisplayName = item.DisplayName,
+                    PlanGuid = selectedPlan.Guid
+                })
+                .ToList();
+
+            DialogResult = true;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_selectedExeName))
+        {
+            return;
+        }
+
+        CreatedRules = new List<AppRule>
+        {
+            new()
+            {
+                ExeName = _selectedExeName,
+                DisplayName = DisplayNameTextBox.Text,
+                PlanGuid = selectedPlan.Guid
+            }
         };
 
         DialogResult = true;

@@ -20,7 +20,7 @@
         </StackPanel>
 
         <ListBox x:Name="ResultsListBox" Grid.Row="1" DisplayMemberPath="DisplayName"
-                 SelectionChanged="ResultsListBox_SelectionChanged"/>
+                 SelectionMode="Extended" SelectionChanged="ResultsListBox_SelectionChanged"/>
 
         <StackPanel Orientation="Horizontal" Grid.Row="2" Margin="0,8,0,0">
             <TextBlock Text="or a direct path:" VerticalAlignment="Center" Width="90"/>
@@ -31,6 +31,8 @@
         <StackPanel Orientation="Horizontal" Grid.Row="3" Margin="0,12,0,0">
             <TextBlock Text="Display name:" VerticalAlignment="Center" Width="90"/>
             <TextBox x:Name="DisplayNameTextBox" Width="260" TextChanged="DisplayNameTextBox_TextChanged"/>
+            <TextBlock x:Name="MultiSelectionNoticeText" Width="260" VerticalAlignment="Center"
+                       TextWrapping="Wrap" Foreground="Gray" Visibility="Collapsed"/>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Grid.Row="4" Margin="0,8,0,0">
@@ -40,7 +42,7 @@
 
         <StackPanel Orientation="Horizontal" Grid.Row="5" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="Cancel" Width="80" Margin="0,0,8,0" Click="CancelButton_Click"/>
-            <Button x:Name="OkButton" Content="OK" Width="80" IsEnabled="False" Click="OkButton_Click"/>
+            <Button x:Name="OkButton" Content="OK" MinWidth="80" Padding="10,0" IsEnabled="False" Click="OkButton_Click"/>
         </StackPanel>
     </Grid>
 </Window>

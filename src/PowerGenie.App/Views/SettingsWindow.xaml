@@ -38,7 +38,15 @@
             <Button x:Name="RemoveRuleButton" Content="Remove rule" Width="90" Click="RemoveRuleButton_Click"/>
         </StackPanel>
 
-        <TextBlock Text="Tray icon colors (shown for whichever plan is currently active):" Grid.Row="3" Margin="0,16,0,4"/>
+        <Grid Grid.Row="3" Margin="0,16,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Tray icon colors (shown for whichever plan is currently active):" VerticalAlignment="Center"/>
+            <Button x:Name="NewPlanButton" Grid.Column="1" Content="New plan..." Width="90" Click="NewPlanButton_Click"
+                    ToolTip="Create a new Windows power plan as a copy of an existing one."/>
+        </Grid>
 
         <!-- Bounded: sizes to content for a few plans, scrolls internally past ~7 rows. -->
         <ScrollViewer Grid.Row="4" MaxHeight="190" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

@@ -151,7 +151,20 @@ public partial class SettingsWindow : Window
 
     // Re-reads the plan list without touching _config or reloading it from disk, so any
     // unsaved edits (a rule just added, a color not yet saved) survive a sync click.
-    private void SyncPlansButton_Click(object sender, RoutedEventArgs e)
+    private void SyncPlansButton_Click(object sender, RoutedEventArgs e) => ReloadPlans();
+
+    private void NewPlanButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new NewPlanDialog(_availablePlans, _powerPlanService) { Owner = this };
+        if (dialog.ShowDialog() == true)
+        {
+            // Bypasses the once-a-day plan cache so the new plan is immediately selectable
+            // for rules, the default plan and tray colors, in this window and in the monitor.
+            ReloadPlans();
+        }
+    }
+
+    private void ReloadPlans()
     {
         var previousDefaultGuid = (DefaultPlanComboBox.SelectedItem as PowerPlan)?.Guid ?? _config.DefaultPlanGuid;
 

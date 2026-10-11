@@ -24,6 +24,18 @@ public partial class AddRuleDialog : Window
     // pointing at the one chosen plan. Never used in edit mode - editing is always one rule.
     private List<(string ExeName, string DisplayName)> _multiSelection = new();
 
+    // Every app the user has ticked in the list, in pick order. Kept separately from the
+    // ListBox's own selection because re-filtering swaps ItemsSource (which clears the ListBox
+    // selection): ticked apps that the search hides must stay selected and still be added, with
+    // the status line saying how many are hidden, rather than being silently lost.
+    private readonly List<SearchResultItem> _picked = new();
+    private bool _suppressListSelection;
+
+    // The display name most recently filled in automatically. Lets a later pick replace it
+    // (instead of leaving the first app's name on the second one) without ever overwriting a
+    // name the user typed themselves.
+    private string? _lastAutoDisplayName;
+
     public IReadOnlyList<AppRule> CreatedRules { get; private set; } = Array.Empty<AppRule>();
 
     // existingRule: when set, pre-fills the dialog so an existing rule's exe, display name,
@@ -34,6 +46,20 @@ public partial class AddRuleDialog : Window
         _availablePlans = availablePlans;
         _isEditMode = existingRule is not null;
         PlanComboBox.ItemsSource = _availablePlans;
+
+        // Editing is always exactly one rule, so it keeps a plain single-select list. Adding gets
+        // checkboxes + multi-select so it's visible, without any modifier key, that several apps
+        // can be picked at once.
+        if (_isEditMode)
+        {
+            ResultsListBox.SelectionMode = System.Windows.Controls.SelectionMode.Single;
+            ResultsListBox.ItemTemplate = (DataTemplate)FindResource("PlainRowTemplate");
+            SelectionStatusPanel.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            ResultsListBox.ItemTemplate = (DataTemplate)FindResource("CheckRowTemplate");
+        }
 
         // Populated before SearchSourceComboBox.SelectedIndex is set below — that assignment
         // fires SelectionChanged synchronously, and its handler (RefreshResultsList) reads
@@ -64,8 +90,9 @@ public partial class AddRuleDialog : Window
 
             DisplayNameTextBox.Text = existingRule.DisplayName;
             PlanComboBox.SelectedItem = _availablePlans.FirstOrDefault(p => p.Guid == existingRule.PlanGuid);
-            UpdateOkButtonState();
         }
+
+        UpdateOkButtonState();
     }
 
     private static SearchResultItem? TryDescribe(Process process)
@@ -97,7 +124,25 @@ public partial class AddRuleDialog : Window
             filtered = source.Where(item => item.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
-        ResultsListBox.ItemsSource = filtered.ToList();
+        var items = filtered.ToList();
+
+        // Swapping ItemsSource clears the ListBox selection; re-tick whatever is still picked
+        // and visible. Suppressed so this bookkeeping isn't mistaken for the user un-ticking.
+        _suppressListSelection = true;
+        try
+        {
+            ResultsListBox.ItemsSource = items;
+            foreach (var item in items.Where(_picked.Contains))
+            {
+                ResultsListBox.SelectedItems.Add(item);
+            }
+        }
+        finally
+        {
+            _suppressListSelection = false;
+        }
+
+        UpdateSelectionStatus();
     }
 
     private void SearchSourceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshResultsList();
@@ -106,27 +151,95 @@ public partial class AddRuleDialog : Window
 
     private void ResultsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // Editing is always exactly one rule, regardless of how many items get selected.
-        var selected = ResultsListBox.SelectedItems.Cast<SearchResultItem>().ToList();
+        if (_suppressListSelection)
+        {
+            return;
+        }
+
+        // Editing is always exactly one rule (the list is single-select there).
         if (_isEditMode)
         {
-            if (selected.Count > 0)
+            if (ResultsListBox.SelectedItem is SearchResultItem editPick)
             {
-                SetSelectedExe(selected[0].ExeNameOrPath);
+                SetSelectedExe(editPick.ExeNameOrPath);
             }
 
             return;
         }
 
-        if (selected.Count >= 2)
+        foreach (var removed in e.RemovedItems.Cast<SearchResultItem>())
         {
-            SetMultiSelection(selected.Select(item => ToRuleSource(item.ExeNameOrPath)).ToList());
+            _picked.Remove(removed);
         }
-        else if (selected.Count == 1)
+
+        foreach (var added in e.AddedItems.Cast<SearchResultItem>())
+        {
+            if (!_picked.Contains(added))
+            {
+                _picked.Add(added);
+            }
+        }
+
+        ApplyPicks();
+    }
+
+    // Turns the current set of ticked apps into the dialog's selection state: 2+ distinct apps
+    // -> multi-select, exactly one -> the ordinary single-app path, none -> back to empty.
+    private void ApplyPicks()
+    {
+        var sources = AddRuleSelectionText.DistinctByExeName(
+            _picked.Select(item => ToRuleSource(item.ExeNameOrPath)));
+
+        if (sources.Count >= 2)
+        {
+            SetMultiSelection(sources);
+        }
+        else if (sources.Count == 1)
         {
             ClearMultiSelection();
-            SetSelectedExe(selected[0].ExeNameOrPath);
+            SetSelectedExe(_picked[0].ExeNameOrPath);
         }
+        else
+        {
+            ClearMultiSelection();
+            ClearSingleSelection();
+        }
+    }
+
+    // Drops all list ticks without treating it as a user selection change. Used when the choice
+    // moves elsewhere (Browse, typing a path) so the ticks don't contradict what will be added.
+    private void ClearListPicks()
+    {
+        _picked.Clear();
+
+        _suppressListSelection = true;
+        try
+        {
+            ResultsListBox.UnselectAll();
+        }
+        finally
+        {
+            _suppressListSelection = false;
+        }
+    }
+
+    private void SelectAllShownLink_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isEditMode)
+        {
+            ResultsListBox.SelectAll();
+        }
+    }
+
+    private void ClearSelectionLink_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isEditMode)
+        {
+            return;
+        }
+
+        ClearListPicks();
+        ApplyPicks();
     }
 
     private void BrowseButton_Click(object sender, RoutedEventArgs e)
@@ -145,9 +258,15 @@ public partial class AddRuleDialog : Window
             return;
         }
 
+        // Browsing replaces the list choice, so un-tick the list to keep it from contradicting it.
+        if (!_isEditMode)
+        {
+            ClearListPicks();
+        }
+
         if (!_isEditMode && dialog.FileNames.Length >= 2)
         {
-            SetMultiSelection(dialog.FileNames.Select(ToRuleSource).ToList());
+            SetMultiSelection(AddRuleSelectionText.DistinctByExeName(dialog.FileNames.Select(ToRuleSource)));
         }
         else
         {
@@ -164,13 +283,17 @@ public partial class AddRuleDialog : Window
         }
 
         ClearMultiSelection();
+        if (!_isEditMode)
+        {
+            ClearListPicks();
+        }
 
         var text = ManualPathTextBox.Text;
         _selectedExeName = string.IsNullOrWhiteSpace(text) ? null : Path.GetFileName(text);
 
-        if (!string.IsNullOrWhiteSpace(_selectedExeName) && string.IsNullOrWhiteSpace(DisplayNameTextBox.Text))
+        if (!string.IsNullOrWhiteSpace(_selectedExeName))
         {
-            DisplayNameTextBox.Text = Path.GetFileNameWithoutExtension(_selectedExeName);
+            ApplyAutoDisplayName(Path.GetFileNameWithoutExtension(_selectedExeName));
         }
 
         UpdateOkButtonState();
@@ -197,9 +320,36 @@ public partial class AddRuleDialog : Window
             _suppressManualPathTextChanged = false;
         }
 
-        if (string.IsNullOrWhiteSpace(DisplayNameTextBox.Text))
+        ApplyAutoDisplayName(Path.GetFileNameWithoutExtension(normalized));
+
+        UpdateOkButtonState();
+    }
+
+    // Fills the name from the chosen exe only while the field is empty or still holds a name we
+    // filled in ourselves, so a name the user typed is never overwritten.
+    private void ApplyAutoDisplayName(string name)
+    {
+        var current = DisplayNameTextBox.Text;
+        if (string.IsNullOrWhiteSpace(current) || current == _lastAutoDisplayName)
         {
-            DisplayNameTextBox.Text = Path.GetFileNameWithoutExtension(normalized);
+            _lastAutoDisplayName = name;
+            DisplayNameTextBox.Text = name;
+        }
+    }
+
+    // Nothing is chosen any more (the last tick was removed): reset the single-app state so the
+    // confirm button disables instead of still pointing at the previously ticked app.
+    private void ClearSingleSelection()
+    {
+        _selectedExeName = null;
+
+        _suppressManualPathTextChanged = true;
+        ManualPathTextBox.Text = string.Empty;
+        _suppressManualPathTextChanged = false;
+
+        if (DisplayNameTextBox.Text == _lastAutoDisplayName)
+        {
+            DisplayNameTextBox.Text = string.Empty;
         }
 
         UpdateOkButtonState();
@@ -221,7 +371,7 @@ public partial class AddRuleDialog : Window
 
         DisplayNameTextBox.Visibility = Visibility.Collapsed;
         MultiSelectionNoticeText.Visibility = Visibility.Visible;
-        MultiSelectionNoticeText.Text = $"{items.Count} apps selected. Each will use its own name.";
+        MultiSelectionNoticeText.Text = "Each rule will use its app's own name.";
 
         ManualPathTextBox.IsEnabled = false;
 
@@ -248,17 +398,41 @@ public partial class AddRuleDialog : Window
 
     private void UpdateOkButtonState()
     {
+        OkButton.Content = AddRuleSelectionText.ConfirmLabel(EffectiveRuleCount, _isEditMode);
+
         if (_multiSelection.Count > 0)
         {
-            OkButton.Content = $"Add {_multiSelection.Count} rules";
             OkButton.IsEnabled = PlanComboBox.SelectedItem is not null;
+        }
+        else
+        {
+            OkButton.IsEnabled = !string.IsNullOrWhiteSpace(_selectedExeName)
+                && !string.IsNullOrWhiteSpace(DisplayNameTextBox.Text)
+                && PlanComboBox.SelectedItem is not null;
+        }
+
+        UpdateSelectionStatus();
+    }
+
+    // How many rules OK would create right now.
+    private int EffectiveRuleCount => _multiSelection.Count > 0
+        ? _multiSelection.Count
+        : string.IsNullOrWhiteSpace(_selectedExeName) ? 0 : 1;
+
+    private void UpdateSelectionStatus()
+    {
+        if (_isEditMode)
+        {
             return;
         }
 
-        OkButton.Content = _isEditMode ? "Save" : "OK";
-        OkButton.IsEnabled = !string.IsNullOrWhiteSpace(_selectedExeName)
-            && !string.IsNullOrWhiteSpace(DisplayNameTextBox.Text)
-            && PlanComboBox.SelectedItem is not null;
+        // Picks the current search/source hides are still selected (and still added); report
+        // them so the count never disagrees with what the button will do.
+        var hidden = Math.Max(0, _picked.Count - ResultsListBox.SelectedItems.Count);
+        var rules = EffectiveRuleCount;
+        var selected = _picked.Count > 0 ? _picked.Count : rules;
+        SelectionStatusText.Text = AddRuleSelectionText.Summary(selected, hidden, rules);
+        ClearSelectionLink.IsEnabled = selected > 0;
     }
 
     private void OkButton_Click(object sender, RoutedEventArgs e)

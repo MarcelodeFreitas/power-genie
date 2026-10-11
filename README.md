@@ -17,7 +17,7 @@ Power Genie watches for the apps you actually care about and switches to whateve
 | Per-app rules | Map any app to a specific power plan (e.g. Bambu Studio to Ultimate Performance). Add, edit, or remove rules, saved instantly. |
 | Default plan | Pick the plan used whenever no rule matches, from every scheme available on your PC. |
 | Three ways to find an app | Search your installed programs, search currently running processes, or point at a `.exe` path directly. |
-| New power plans | Create a plan from Settings by copying any existing plan under a name you choose (no admin rights needed), then fine-tune it in Windows' own Power Options. |
+| Edit power plans | One click in Settings opens Windows' own Power Options, where you can create, rename or tweak plans; Power Genie picks up the changes when you come back. |
 | Live tray icon | Shows a colored dot for whichever plan is currently active, with a tooltip naming it. Assign your own color per plan in Settings. |
 | Background monitoring | Polls every 3 seconds and switches automatically, no manual toggling. |
 | Start with Windows | Optional, one checkbox. |

@@ -44,8 +44,8 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="Tray icon colors (shown for whichever plan is currently active):" VerticalAlignment="Center"/>
-            <Button x:Name="NewPlanButton" Grid.Column="1" Content="New plan..." Width="90" Click="NewPlanButton_Click"
-                    ToolTip="Create a new Windows power plan as a copy of an existing one."/>
+            <Button x:Name="EditPlansButton" Grid.Column="1" Content="Edit power plans" Padding="10,2" Click="EditPlansButton_Click"
+                    ToolTip="Open Windows Power Options to create, rename or change power plans."/>
         </Grid>
 
         <!-- Bounded: sizes to content for a few plans, scrolls internally past ~7 rows. -->

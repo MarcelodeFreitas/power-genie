@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using PowerGenie.App.Models;
 using PowerGenie.App.Services;
@@ -19,6 +21,7 @@ public partial class SettingsWindow : Window
     private List<PlanColorRow> _planColorRows = new();
     private bool _isLoading;
     private bool _hasUnsavedChanges;
+    private bool _reloadPlansOnActivate;
 
     public event Action<AppConfig>? ConfigSaved;
 
@@ -161,13 +164,36 @@ public partial class SettingsWindow : Window
     // unsaved edits (a rule just added, a color not yet saved) survive a sync click.
     private void SyncPlansButton_Click(object sender, RoutedEventArgs e) => ReloadPlans();
 
-    private void NewPlanButton_Click(object sender, RoutedEventArgs e)
+    // Opens the classic Power Options control panel, where plans can be created, renamed,
+    // deleted or tuned. Deliberately not the "rundll32 ... powercfg.cpl,,3" shortcut: that jumps
+    // straight into the advanced settings of whichever plan is currently active.
+    private void EditPlansButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new NewPlanDialog(_availablePlans, _powerPlanService) { Owner = this };
-        if (dialog.ShowDialog() == true)
+        try
         {
-            // Bypasses the once-a-day plan cache so the new plan is immediately selectable
-            // for rules, the default plan and tray colors, in this window and in the monitor.
+            Process.Start(new ProcessStartInfo(
+                Path.Combine(Environment.SystemDirectory, "control.exe"), "powercfg.cpl")
+            {
+                UseShellExecute = true
+            });
+            _reloadPlansOnActivate = true;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            System.Windows.MessageBox.Show(
+                this, $"Couldn't open Windows Power Options.\n\n{ex.Message}", "Power Genie",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    // Plans may have been created, renamed or deleted in Power Options, so when the user comes
+    // back to this window the list is re-read (bypassing the once-a-day cache).
+    protected override void OnActivated(EventArgs e)
+    {
+        base.OnActivated(e);
+        if (_reloadPlansOnActivate)
+        {
+            _reloadPlansOnActivate = false;
             ReloadPlans();
         }
     }

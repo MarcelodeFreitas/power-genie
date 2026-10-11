@@ -13,7 +13,8 @@ public sealed class ProcessMonitorService : IDisposable
 
     private AppConfig _config;
     private Guid? _lastAppliedPlanGuid;
-    private List<PowerPlan> _availablePlans;
+    private List<PowerPlan> _availablePlans = new();
+    private IReadOnlyDictionary<Guid, int> _planScores = new Dictionary<Guid, int>();
     private DateTime _lastPlansRefreshUtc;
 
     // Carries the already-fetched plan list along so subscribers (the tray icon) don't need
@@ -34,8 +35,7 @@ public sealed class ProcessMonitorService : IDisposable
         _plansRefreshInterval = plansRefreshInterval ?? TimeSpan.FromDays(1);
         _utcNowProvider = utcNowProvider ?? (() => DateTime.UtcNow);
 
-        _availablePlans = _powerPlanService.GetAvailablePlans();
-        _lastPlansRefreshUtc = _utcNowProvider();
+        RefreshAvailablePlans();
 
         _timer = new System.Timers.Timer(pollInterval.TotalMilliseconds) { AutoReset = true };
         _timer.Elapsed += (_, _) => Tick();
@@ -55,6 +55,26 @@ public sealed class ProcessMonitorService : IDisposable
     {
         _availablePlans = _powerPlanService.GetAvailablePlans();
         _lastPlansRefreshUtc = _utcNowProvider();
+
+        // Scored here, with the plan list, so the per-tick resolve never shells out to powercfg.
+        _planScores = _availablePlans.ToDictionary(p => p.Guid, p => _powerPlanService.GetPerformanceScore(p.Guid));
+    }
+
+    // Called when Power Genie exits so a rule's high-performance plan isn't left active (and
+    // draining battery / making noise) once nothing is watching the rules any more.
+    public void RestoreDefaultPlan()
+    {
+        try
+        {
+            if (_availablePlans.Any(p => p.Guid == _config.DefaultPlanGuid))
+            {
+                _powerPlanService.SetActivePlan(_config.DefaultPlanGuid);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Restoring the default plan on exit failed", ex);
+        }
     }
 
     internal void Tick()
@@ -74,7 +94,8 @@ public sealed class ProcessMonitorService : IDisposable
                 runningExeNames,
                 _config.Rules,
                 availableGuids,
-                _config.DefaultPlanGuid);
+                _config.DefaultPlanGuid,
+                _planScores);
 
             if (resolvedPlanGuid != Guid.Empty && resolvedPlanGuid != _lastAppliedPlanGuid)
             {

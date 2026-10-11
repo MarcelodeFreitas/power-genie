@@ -96,6 +96,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _monitor?.Stop();
+        _monitor?.RestoreDefaultPlan();
         _monitor?.Dispose();
         _trayIconManager?.Dispose();
         base.OnExit(e);

@@ -35,15 +35,20 @@ public partial class AddRuleDialog : Window
     // (instead of leaving the first app's name on the second one) without ever overwriting a
     // name the user typed themselves.
     private string? _lastAutoDisplayName;
+    private readonly IReadOnlyList<AppRule> _allRules;
+    private readonly AppRule? _editedRule;
 
     public IReadOnlyList<AppRule> CreatedRules { get; private set; } = Array.Empty<AppRule>();
 
     // existingRule: when set, pre-fills the dialog so an existing rule's exe, display name,
     // and plan can be edited instead of only ever creating a brand new rule.
-    public AddRuleDialog(List<PowerPlan> availablePlans, AppRule? existingRule = null)
+    // allRules: the rules already configured, used to warn before a new rule duplicates one.
+    public AddRuleDialog(List<PowerPlan> availablePlans, AppRule? existingRule = null, IReadOnlyList<AppRule>? allRules = null)
     {
         InitializeComponent();
         _availablePlans = availablePlans;
+        _allRules = allRules ?? Array.Empty<AppRule>();
+        _editedRule = existingRule;
         _isEditMode = existingRule is not null;
         PlanComboBox.ItemsSource = _availablePlans;
 
@@ -453,6 +458,11 @@ public partial class AddRuleDialog : Window
                 })
                 .ToList();
 
+            if (!ConfirmReplacingExistingRules())
+            {
+                return;
+            }
+
             DialogResult = true;
             return;
         }
@@ -472,7 +482,44 @@ public partial class AddRuleDialog : Window
             }
         };
 
+        if (!ConfirmReplacingExistingRules())
+        {
+            return;
+        }
+
         DialogResult = true;
+    }
+
+    // A rule for the same exe already exists: block silently adding a contradictory second one.
+    // Replace swaps the old rule for the new one; Cancel keeps the dialog open so nothing is lost.
+    private bool ConfirmReplacingExistingRules()
+    {
+        var conflicts = RuleListEditor.FindConflicts(_allRules, CreatedRules, _editedRule);
+        if (conflicts.Count == 0)
+        {
+            return true;
+        }
+
+        var list = string.Join("\n", conflicts.Select(rule =>
+        {
+            var plan = _availablePlans.FirstOrDefault(p => p.Guid == rule.PlanGuid)?.Name ?? "(deleted plan)";
+            return $"  \u2022 {rule.ExeName} \u2192 {plan}";
+        }));
+
+        var message = conflicts.Count == 1
+            ? $"A rule for this app already exists:\n\n{list}\n\nReplace it with the new rule?"
+            : $"Rules for these apps already exist:\n\n{list}\n\nReplace them with the new rules?";
+
+        // Yes = Replace, No = Cancel: the standard MessageBox has no custom button text.
+        var answer = System.Windows.MessageBox.Show(
+            this,
+            message + "\n\nYes = Replace    No = Cancel",
+            "Rule already exists",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question,
+            MessageBoxResult.No);
+
+        return answer == MessageBoxResult.Yes;
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)

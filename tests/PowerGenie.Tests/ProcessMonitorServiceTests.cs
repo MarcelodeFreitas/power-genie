@@ -36,10 +36,15 @@ public class ProcessMonitorServiceTests
             return _responses.Count > 1 ? _responses.Dequeue() : _responses.Peek();
         }
 
+        public List<Guid> ActivatedPlans { get; } = new();
+
         public override void SetActivePlan(Guid planGuid)
         {
-            // No-op: never touch the real machine's power plan from a test.
+            // Never touch the real machine's power plan from a test; just record the request.
+            ActivatedPlans.Add(planGuid);
         }
+
+        public override int GetPerformanceScore(Guid planGuid) => 0;
     }
 
     // Refreshing the plan list means shelling out to powercfg, which is rarely needed (the
@@ -145,5 +150,32 @@ public class ProcessMonitorServiceTests
         monitor.Tick();
 
         Assert.Equal(0, raiseCount);
+    }
+
+    [Fact]
+    public void RestoreDefaultPlan_activates_the_default_plan()
+    {
+        var defaultGuid = Guid.NewGuid();
+        var fake = new FakePowerPlanService(new List<PowerPlan> { new(defaultGuid, "Balanced", false) });
+        var logger = new FileLogger(Path.Combine(Path.GetTempPath(), $"power-genie-monitor-test-{Guid.NewGuid()}.txt"));
+        using var monitor = new ProcessMonitorService(
+            fake, logger, new AppConfig { DefaultPlanGuid = defaultGuid }, TimeSpan.FromMinutes(10));
+
+        monitor.RestoreDefaultPlan();
+
+        Assert.Equal(new[] { defaultGuid }, fake.ActivatedPlans);
+    }
+
+    [Fact]
+    public void RestoreDefaultPlan_does_nothing_when_the_default_plan_no_longer_exists()
+    {
+        var fake = new FakePowerPlanService(new List<PowerPlan> { new(Guid.NewGuid(), "Balanced", false) });
+        var logger = new FileLogger(Path.Combine(Path.GetTempPath(), $"power-genie-monitor-test-{Guid.NewGuid()}.txt"));
+        using var monitor = new ProcessMonitorService(
+            fake, logger, new AppConfig { DefaultPlanGuid = Guid.NewGuid() }, TimeSpan.FromMinutes(10));
+
+        monitor.RestoreDefaultPlan();
+
+        Assert.Empty(fake.ActivatedPlans);
     }
 }

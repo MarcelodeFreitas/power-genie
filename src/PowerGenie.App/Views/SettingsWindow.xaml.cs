@@ -64,9 +64,17 @@ public partial class SettingsWindow : Window
     {
         var planGuidsInOrder = _availablePlans.Select(p => p.Guid).ToList();
 
+        // Rebuilding the rows must not throw away colors picked but not yet saved: overlay the
+        // current on-screen picks on top of the saved ones before looking colors up.
+        var colors = new Dictionary<Guid, string>(_config.PlanColors);
+        foreach (var row in _planColorRows)
+        {
+            colors[row.PlanGuid] = row.SelectedColor.Hex;
+        }
+
         _planColorRows = _availablePlans.Select(plan =>
         {
-            var hex = PlanColorPalette.GetColorForPlan(plan.Guid, _config.PlanColors, planGuidsInOrder);
+            var hex = PlanColorPalette.GetColorForPlan(plan.Guid, colors, planGuidsInOrder);
             var selected = PlanColorPalette.Colors.FirstOrDefault(c => c.Hex == hex)
                 ?? PlanColorPalette.Colors[^1];
 
@@ -123,10 +131,10 @@ public partial class SettingsWindow : Window
 
     private void AddRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new AddRuleDialog(_availablePlans) { Owner = this };
+        var dialog = new AddRuleDialog(_availablePlans, allRules: _config.Rules) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.CreatedRules.Count > 0)
         {
-            _config.Rules.AddRange(dialog.CreatedRules);
+            RuleListEditor.AddOrReplace(_config.Rules, dialog.CreatedRules);
             RefreshRuleRows();
             PerformSave();
         }
@@ -140,10 +148,10 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var dialog = new AddRuleDialog(_availablePlans, _config.Rules[index]) { Owner = this };
+        var dialog = new AddRuleDialog(_availablePlans, _config.Rules[index], _config.Rules) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.CreatedRules.Count > 0)
         {
-            _config.Rules[index] = dialog.CreatedRules[0];
+            RuleListEditor.ReplaceEdited(_config.Rules, index, dialog.CreatedRules[0]);
             RefreshRuleRows();
             PerformSave();
         }

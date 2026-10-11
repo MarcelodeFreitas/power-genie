@@ -109,4 +109,52 @@ public class RuleResolverTests
 
         Assert.Equal(HighPerf, result);
     }
+
+    [Fact]
+    public void Highest_performance_plan_wins_when_several_rules_match()
+    {
+        var rules = new List<AppRule>
+        {
+            new() { ExeName = "light.exe", DisplayName = "Light", PlanGuid = Balanced },
+            new() { ExeName = "heavy.exe", DisplayName = "Heavy", PlanGuid = HighPerf }
+        };
+        var scores = new Dictionary<Guid, int> { [Balanced] = 100_005, [HighPerf] = 100_100, [DefaultPlan] = 50_005 };
+
+        var result = RuleResolver.ResolveActivePlan(
+            new[] { "light.exe", "heavy.exe" }, rules, AllPlans, DefaultPlan, scores);
+
+        Assert.Equal(HighPerf, result);
+    }
+
+    [Fact]
+    public void Equal_scores_fall_back_to_rule_order()
+    {
+        var rules = new List<AppRule>
+        {
+            new() { ExeName = "a.exe", DisplayName = "A", PlanGuid = Balanced },
+            new() { ExeName = "b.exe", DisplayName = "B", PlanGuid = HighPerf }
+        };
+        var scores = new Dictionary<Guid, int> { [Balanced] = 100_100, [HighPerf] = 100_100 };
+
+        var result = RuleResolver.ResolveActivePlan(
+            new[] { "b.exe", "a.exe" }, rules, AllPlans, DefaultPlan, scores);
+
+        Assert.Equal(Balanced, result);
+    }
+
+    [Fact]
+    public void Plans_without_a_score_rank_lowest()
+    {
+        var rules = new List<AppRule>
+        {
+            new() { ExeName = "a.exe", DisplayName = "A", PlanGuid = Balanced },
+            new() { ExeName = "b.exe", DisplayName = "B", PlanGuid = HighPerf }
+        };
+        var scores = new Dictionary<Guid, int> { [HighPerf] = 100_100 };
+
+        var result = RuleResolver.ResolveActivePlan(
+            new[] { "a.exe", "b.exe" }, rules, AllPlans, DefaultPlan, scores);
+
+        Assert.Equal(HighPerf, result);
+    }
 }

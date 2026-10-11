@@ -41,6 +41,9 @@ public sealed class ProcessMonitorService : IDisposable
         _timer.Elapsed += (_, _) => Tick();
     }
 
+    // Scores of the plans in the cached plan list; the tray uses them to pick automatic icons.
+    public IReadOnlyDictionary<Guid, int> PlanScores => _planScores;
+
     public void UpdateConfig(AppConfig config) => _config = config;
 
     public void Start() => _timer.Start();

@@ -18,7 +18,7 @@ public partial class SettingsWindow : Window
 
     private List<PowerPlan> _availablePlans = new();
     private AppConfig _config = new();
-    private List<PlanColorRow> _planColorRows = new();
+    private List<PlanIconRow> _planColorRows = new();
     private bool _isLoading;
     private bool _hasUnsavedChanges;
     private bool _reloadPlansOnActivate;
@@ -65,34 +65,28 @@ public partial class SettingsWindow : Window
 
     private void RefreshPlanColorRows()
     {
-        var planGuidsInOrder = _availablePlans.Select(p => p.Guid).ToList();
+        // The automatic icons follow the plans' performance, so they are recomputed whenever the
+        // plan list is (re)loaded, which also picks up plans created in Power Options.
+        var automatic = PlanIconDefaults.Compute(_availablePlans, _powerPlanService.GetPerformanceScores(_availablePlans));
 
-        // Rebuilding the rows must not throw away colors picked but not yet saved: overlay the
-        // current on-screen picks on top of the saved ones before looking colors up.
-        var colors = new Dictionary<Guid, string>(_config.PlanColors);
-        foreach (var row in _planColorRows)
-        {
-            colors[row.PlanGuid] = row.SelectedColor.Hex;
-        }
+        // Rebuilding the rows must not throw away edits made but not yet saved: a row the user
+        // already changed on screen keeps its on-screen style over the saved or automatic one.
+        var onScreen = _planColorRows.Where(r => r.IsCustomized).ToDictionary(r => r.PlanGuid, r => r.ToStyle());
 
         _planColorRows = _availablePlans.Select(plan =>
         {
-            var hex = PlanColorPalette.GetColorForPlan(plan.Guid, colors, planGuidsInOrder);
-            var selected = PlanColorPalette.Colors.FirstOrDefault(c => c.Hex == hex)
-                ?? PlanColorPalette.Colors[^1];
+            var isCustomized = onScreen.ContainsKey(plan.Guid) || _config.PlanIcons.ContainsKey(plan.Guid);
+            var style = onScreen.TryGetValue(plan.Guid, out var pending)
+                ? pending
+                : PlanIconDefaults.Resolve(plan.Guid, _config.PlanIcons, automatic);
 
-            return new PlanColorRow
-            {
-                PlanGuid = plan.Guid,
-                PlanName = plan.Name,
-                SelectedColor = selected
-            };
+            return new PlanIconRow(plan.Guid, plan.Name, style, isCustomized);
         }).ToList();
 
         PlanColorsItemsControl.ItemsSource = _planColorRows;
     }
 
-    private void PlanColorComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    private void PlanIconComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         if (!_isLoading)
         {
@@ -252,9 +246,13 @@ public partial class SettingsWindow : Window
 
         _config.StartWithWindows = StartWithWindowsCheckBox.IsChecked == true;
 
+        // Only customized plans are stored; the rest stay automatic.
         foreach (var row in _planColorRows)
         {
-            _config.PlanColors[row.PlanGuid] = row.SelectedColor.Hex;
+            if (row.IsCustomized)
+            {
+                _config.PlanIcons[row.PlanGuid] = row.ToStyle();
+            }
         }
 
         _configStore.Save(_config);

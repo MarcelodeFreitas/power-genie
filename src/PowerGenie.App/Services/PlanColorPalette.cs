@@ -6,54 +6,31 @@ namespace PowerGenie.App.Services;
 // silently renders blank. A record has real runtime properties, so binding works.
 public sealed record PaletteColor(string Name, string Hex);
 
+// The colors offered for both a plan's dot and its symbol.
 public static class PlanColorPalette
 {
-    private const string DefaultHex = "#616161";
+    public const string DefaultHex = "#616161";
+    public const string White = "#FFFFFF";
+    public const string Black = "#212121";
 
-    // The last entry (Gray) is reserved as the "nothing assigned yet, unknown plan" fallback
-    // and is deliberately excluded from auto-assignment so every plan a user hasn't touched
-    // still gets a distinct, intentional-looking color instead of falling back to gray.
     public static readonly IReadOnlyList<PaletteColor> Colors = new List<PaletteColor>
     {
-        new("Green", "#2E7D32"),
-        new("Blue", "#1565C0"),
-        new("Orange", "#EF6C00"),
-        new("Red", "#C62828"),
-        new("Purple", "#6A1B9A"),
+        new("Green", "#2E9E5B"),
         new("Teal", "#00838F"),
+        new("Blue", "#1E6FD9"),
+        new("Purple", "#7B3FB5"),
+        new("Pink", "#D6458C"),
+        new("Red", "#D13438"),
+        new("Orange", "#EF7B1A"),
+        new("Yellow", "#E8B923"),
         new("Gray", DefaultHex),
+        new("Black", Black),
+        new("White", White),
     };
 
-    public static string GetColorForPlan(
-        Guid planGuid,
-        IReadOnlyDictionary<Guid, string> assignments,
-        IReadOnlyList<Guid> availablePlanGuidsInOrder)
-    {
-        if (assignments.TryGetValue(planGuid, out var assignedHex))
-        {
-            return assignedHex;
-        }
-
-        var index = availablePlanGuidsInOrder.IndexOf(planGuid);
-        if (index < 0)
-        {
-            return DefaultHex;
-        }
-
-        var autoAssignablePaletteSize = Colors.Count - 1;
-        return Colors[index % autoAssignablePaletteSize].Hex;
-    }
-
-    private static int IndexOf(this IReadOnlyList<Guid> list, Guid value)
-    {
-        for (var i = 0; i < list.Count; i++)
-        {
-            if (list[i] == value)
-            {
-                return i;
-            }
-        }
-
-        return -1;
-    }
+    // A stored color that isn't in the palette (hand-edited config) still has to resolve to
+    // something selectable, so unknown values fall back to Gray.
+    public static PaletteColor Find(string? hex) =>
+        Colors.FirstOrDefault(c => string.Equals(c.Hex, hex, StringComparison.OrdinalIgnoreCase))
+        ?? Colors.First(c => c.Hex == DefaultHex);
 }

@@ -1,4 +1,6 @@
 using System.Drawing;
+using PowerGenie.App.Models;
+using PowerGenie.App.Services;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Application = System.Windows.Application;
@@ -27,22 +29,11 @@ public sealed class TrayIconManager : IDisposable
 
     public void Show() => _notifyIcon.Visible = true;
 
-    // Draws a simple colored dot so the tray icon itself shows which plan is active at a
-    // glance, instead of always looking the same regardless of state.
-    public void UpdateActivePlan(string planName, string hexColor)
+    // Draws the plan's dot-and-symbol icon so the tray shows which plan is active at a glance,
+    // instead of always looking the same regardless of state.
+    public void UpdateActivePlan(string planName, PlanIconStyle style)
     {
-        var color = ColorTranslator.FromHtml(hexColor);
-
-        using var bitmap = new Bitmap(32, 32);
-        using (var graphics = Graphics.FromImage(bitmap))
-        {
-            graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            graphics.Clear(Color.Transparent);
-            using var brush = new SolidBrush(color);
-            using var pen = new Pen(Color.White, 2);
-            graphics.FillEllipse(brush, 3, 3, 26, 26);
-            graphics.DrawEllipse(pen, 3, 3, 26, 26);
-        }
+        using var bitmap = TrayIconRenderer.Render(style, 32);
 
         // Icon.FromHandle wraps the native handle without owning it — that handle must stay
         // alive for as long as this Icon is in use (assigned to _notifyIcon.Icon), and is only

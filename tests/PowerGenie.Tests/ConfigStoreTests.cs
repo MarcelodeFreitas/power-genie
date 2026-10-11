@@ -37,9 +37,10 @@ public class ConfigStoreTests : IDisposable
                     PlanGuid = Guid.Parse("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c")
                 }
             },
-            PlanColors = new Dictionary<Guid, string>
+            PlanIcons = new Dictionary<Guid, PlanIconStyle>
             {
-                [Guid.Parse("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c")] = "#C62828"
+                [Guid.Parse("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c")] =
+                    new() { DotColor = "#C62828", GlyphColor = "#FFFFFF", Glyph = "flame" }
             }
         };
 
@@ -50,7 +51,9 @@ public class ConfigStoreTests : IDisposable
         Assert.False(loaded.StartWithWindows);
         Assert.Single(loaded.Rules);
         Assert.Equal("bambu-studio.exe", loaded.Rules[0].ExeName);
-        Assert.Equal("#C62828", loaded.PlanColors[Guid.Parse("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c")]);
+        var icon = loaded.PlanIcons[Guid.Parse("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c")];
+        Assert.Equal("#C62828", icon.DotColor);
+        Assert.Equal("flame", icon.Glyph);
     }
 
     [Fact]

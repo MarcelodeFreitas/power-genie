@@ -73,11 +73,7 @@ public partial class App : Application
             return;
         }
 
-        var planColors = _currentConfig?.PlanColors ?? new Dictionary<Guid, string>();
-        var colorHex = PlanColorPalette.GetColorForPlan(
-            activePlan.Guid, planColors, availablePlans.Select(p => p.Guid).ToList());
-
-        _trayIconManager?.UpdateActivePlan(activePlan.Name, colorHex);
+        _trayIconManager?.UpdateActivePlan(activePlan.Name, ResolveIcon(activePlan.Guid, availablePlans));
     }
 
     // Fires on the monitor's timer thread, not the UI thread — NotifyIcon must only be
@@ -86,11 +82,17 @@ public partial class App : Application
     {
         var plan = availablePlans.FirstOrDefault(p => p.Guid == planGuid);
         var planName = plan?.Name ?? "Unknown plan";
-        var planColors = _currentConfig?.PlanColors ?? new Dictionary<Guid, string>();
-        var colorHex = PlanColorPalette.GetColorForPlan(
-            planGuid, planColors, availablePlans.Select(p => p.Guid).ToList());
+        var style = ResolveIcon(planGuid, availablePlans);
 
-        Dispatcher.Invoke(() => _trayIconManager?.UpdateActivePlan(planName, colorHex));
+        Dispatcher.Invoke(() => _trayIconManager?.UpdateActivePlan(planName, style));
+    }
+
+    // The user's saved icon for the plan, or the automatic one chosen from its performance rank.
+    private Models.PlanIconStyle ResolveIcon(Guid planGuid, IReadOnlyList<Models.PowerPlan> availablePlans)
+    {
+        var automatic = PlanIconDefaults.Compute(availablePlans, _monitor!.PlanScores);
+        var customized = _currentConfig?.PlanIcons ?? new Dictionary<Guid, Models.PlanIconStyle>();
+        return PlanIconDefaults.Resolve(planGuid, customized, automatic);
     }
 
     protected override void OnExit(ExitEventArgs e)

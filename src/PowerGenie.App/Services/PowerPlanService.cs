@@ -31,6 +31,25 @@ public class PowerPlanService
     // Higher means a more performance-oriented plan: maximum processor state (AC) dominates,
     // minimum processor state (AC) breaks ties. Returns 0 when a plan can't be queried, so an
     // unreadable plan ranks as the least performant instead of failing the whole refresh.
+    // Windows' own Power saver and Balanced can have identical processor limits, which would make
+    // them indistinguishable; their well-known GUIDs break that tie in the obvious direction.
+    // Every other plan sits in the middle, so custom and vendor plans still rank by their settings.
+    private static int BuiltInTieBreak(Guid planGuid)
+    {
+        if (planGuid == PowerSaverGuid)
+        {
+            return 0;
+        }
+
+        return planGuid == HighPerformanceGuid ? 2 : 1;
+    }
+
+    private static readonly Guid PowerSaverGuid = Guid.Parse("a1841308-3541-4fab-bc81-f71556f20b4a");
+    private static readonly Guid HighPerformanceGuid = Guid.Parse("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c");
+
+    public Dictionary<Guid, int> GetPerformanceScores(IEnumerable<PowerPlan> plans) =>
+        plans.ToDictionary(p => p.Guid, p => GetPerformanceScore(p.Guid));
+
     public virtual int GetPerformanceScore(Guid planGuid)
     {
         try
@@ -39,7 +58,7 @@ public class PowerPlanService
                 RunPowercfg("/query", planGuid.ToString("D"), ProcessorSubgroup, MaxProcessorState));
             var min = PowerPlanSettingParser.ParseAcIndex(
                 RunPowercfg("/query", planGuid.ToString("D"), ProcessorSubgroup, MinProcessorState));
-            return (max ?? 0) * 1000 + (min ?? 0);
+            return ((max ?? 0) * 1000 + (min ?? 0)) * 10 + BuiltInTieBreak(planGuid);
         }
         catch (InvalidOperationException)
         {

@@ -18,7 +18,7 @@ Power Genie watches for the apps you actually care about and switches to whateve
 | Default plan | Pick the plan used whenever no rule matches, from every scheme available on your PC. |
 | Three ways to find an app | Search your installed programs, search currently running processes, or point at a `.exe` path directly. |
 | Edit power plans | One click in Settings opens Windows' own Power Options, where you can create, rename or tweak plans; Power Genie picks up the changes when you come back. |
-| Live tray icon | Shows a colored dot for whichever plan is currently active, with a tooltip naming it. Assign your own color per plan in Settings. |
+| Live tray icon | Shows a dot with a symbol for whichever plan is currently active, with a tooltip naming it. Icons are picked automatically from how performance-oriented each plan is (leaf, balance, lightning, flame), whatever the plans are called. In Settings you can change any plan's dot color, symbol and symbol color. |
 | Background monitoring | Polls every 3 seconds and switches automatically, no manual toggling. |
 | Start with Windows | Optional, one checkbox. |
 

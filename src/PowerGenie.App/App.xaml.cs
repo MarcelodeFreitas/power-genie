@@ -15,12 +15,14 @@ public partial class App : Application
     private SettingsWindow? _settingsWindow;
     private FileLogger? _logger;
     private Models.AppConfig? _currentConfig;
+    private bool _sessionEnding;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         _logger = new FileLogger(FileLogger.GetDefaultFilePath());
+        SessionEnding += (_, _) => _sessionEnding = true;
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
@@ -107,6 +109,15 @@ public partial class App : Application
     private void OnDispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
     {
         _logger?.LogError("Unhandled UI exception", e.Exception);
+        e.Handled = true;
+
+        // A dialog during Windows shutdown only blocks the shutdown and can't be read, so the
+        // error is logged and the shutdown continues.
+        if (_sessionEnding)
+        {
+            return;
+        }
+
         // Fully qualified to avoid ambiguity with System.Windows.Forms.MessageBox,
         // which is implicitly in scope because this project also enables UseWindowsForms.
         System.Windows.MessageBox.Show(
@@ -114,7 +125,6 @@ public partial class App : Application
             "Power Genie",
             MessageBoxButton.OK,
             MessageBoxImage.Error);
-        e.Handled = true;
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)

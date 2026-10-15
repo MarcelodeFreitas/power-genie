@@ -21,7 +21,7 @@ public static class RuleResolver
 
         foreach (var rule in rules)
         {
-            if (!availablePlanGuids.Contains(rule.PlanGuid) || !runningSet.Contains(rule.ExeName))
+            if (!rule.IsEnabled || !availablePlanGuids.Contains(rule.PlanGuid) || !runningSet.Contains(rule.ExeName))
             {
                 continue;
             }

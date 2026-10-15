@@ -110,20 +110,85 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void RefreshRuleRows()
+    private RuleStatusFilter CurrentStatusFilter =>
+        (RuleStatusFilter)Math.Max(0, RuleStatusFilterComboBox.SelectedIndex);
+
+    private string PlanNameFor(Guid planGuid) =>
+        _availablePlans.FirstOrDefault(p => p.Guid == planGuid)?.Name ?? "(deleted plan)";
+
+    // Rebuilds the visible rows from the search box and status filter. "reselect" keeps the
+    // selection on a rule after an edit or toggle, if the current filter still shows it.
+    private void RefreshRuleRows(AppRule? reselect = null)
     {
         _ruleRows.Clear();
-        foreach (var rule in _config.Rules)
+        var visible = RuleFilter.Apply(_config.Rules, RuleSearchTextBox.Text, CurrentStatusFilter, PlanNameFor);
+        foreach (var rule in visible)
         {
-            var planName = _availablePlans.FirstOrDefault(p => p.Guid == rule.PlanGuid)?.Name ?? "(deleted plan)";
             _ruleRows.Add(new RuleRow
             {
                 ExeName = rule.ExeName,
                 DisplayName = rule.DisplayName,
                 PlanGuid = rule.PlanGuid,
-                PlanName = planName
+                PlanName = PlanNameFor(rule.PlanGuid),
+                Rule = rule
             });
         }
+
+        if (reselect != null)
+        {
+            RulesGrid.SelectedItem = _ruleRows.FirstOrDefault(r => ReferenceEquals(r.Rule, reselect));
+        }
+
+        if (_ruleRows.Count == 0)
+        {
+            RulesEmptyText.Text = _config.Rules.Count == 0 ? "No rules yet. Click Add rule." : "No rules match.";
+            RulesEmptyText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            RulesEmptyText.Visibility = Visibility.Collapsed;
+        }
+
+        UpdateToggleButton();
+    }
+
+    private void UpdateToggleButton()
+    {
+        if (RulesGrid.SelectedItem is RuleRow row)
+        {
+            ToggleRuleButton.IsEnabled = true;
+            ToggleRuleButton.Content = row.Rule.IsEnabled ? "Disable" : "Enable";
+        }
+        else
+        {
+            ToggleRuleButton.IsEnabled = false;
+            ToggleRuleButton.Content = "Disable";
+        }
+    }
+
+    private void RuleSearchTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
+        RefreshRuleRows();
+    }
+
+    private void RuleStatusFilterComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
+        RefreshRuleRows();
+    }
+
+    private void RulesGrid_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        UpdateToggleButton();
     }
 
     private void AddRuleButton_Click(object sender, RoutedEventArgs e)
@@ -139,8 +204,15 @@ public partial class SettingsWindow : Window
 
     private void EditRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        var index = RulesGrid.SelectedIndex;
-        if (index < 0 || index >= _config.Rules.Count)
+        // Lookup is by reference to the rule behind the selected row, so filtering can never
+        // target the wrong rule.
+        if (RulesGrid.SelectedItem is not RuleRow row)
+        {
+            return;
+        }
+
+        var index = _config.Rules.IndexOf(row.Rule);
+        if (index < 0)
         {
             return;
         }
@@ -148,8 +220,11 @@ public partial class SettingsWindow : Window
         var dialog = new AddRuleDialog(_availablePlans, _config.Rules[index], _config.Rules) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.CreatedRules.Count > 0)
         {
-            RuleListEditor.ReplaceEdited(_config.Rules, index, dialog.CreatedRules[0]);
-            RefreshRuleRows();
+            // The dialog does not know about the enabled flag, so carry the current state over.
+            var edited = dialog.CreatedRules[0];
+            edited.IsEnabled = row.Rule.IsEnabled;
+            RuleListEditor.ReplaceEdited(_config.Rules, index, edited);
+            RefreshRuleRows(edited);
             PerformSave();
         }
     }
@@ -218,16 +293,34 @@ public partial class SettingsWindow : Window
 
     private void RemoveRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        // Index-based, not content-matching: two identical rules (same exe + plan) would
-        // otherwise both be removed by a single click instead of just the selected one.
-        var index = RulesGrid.SelectedIndex;
-        if (index < 0 || index >= _config.Rules.Count)
+        // Lookup is by reference to the rule behind the selected row, so filtering can never
+        // target the wrong rule.
+        if (RulesGrid.SelectedItem is not RuleRow row)
+        {
+            return;
+        }
+
+        var index = _config.Rules.IndexOf(row.Rule);
+        if (index < 0)
         {
             return;
         }
 
         _config.Rules.RemoveAt(index);
         RefreshRuleRows();
+        PerformSave();
+    }
+
+    private void ToggleRuleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (RulesGrid.SelectedItem is not RuleRow row)
+        {
+            return;
+        }
+
+        // If the active filter now hides the toggled rule, the selection is simply cleared.
+        row.Rule.IsEnabled = !row.Rule.IsEnabled;
+        RefreshRuleRows(row.Rule);
         PerformSave();
     }
 
@@ -264,7 +357,7 @@ public partial class SettingsWindow : Window
     }
 
     // Closing via the window's X button (or Alt+F4) must not silently discard rules/settings
-    // the user added but never explicitly saved — that gap is exactly what caused a rule to
+    // the user added but never explicitly saved. That gap is exactly what caused a rule to
     // vanish without the user realizing it never took effect.
     protected override void OnClosing(CancelEventArgs e)
     {

@@ -157,4 +157,39 @@ public class RuleResolverTests
 
         Assert.Equal(HighPerf, result);
     }
+
+    [Fact]
+    public void A_disabled_rule_is_skipped_and_the_next_matching_enabled_rule_wins()
+    {
+        var rules = new List<AppRule>
+        {
+            new() { ExeName = "bambu-studio.exe", DisplayName = "Bambu Studio", PlanGuid = HighPerf, IsEnabled = false },
+            new() { ExeName = "bambu-studio.exe", DisplayName = "Bambu Studio (fallback)", PlanGuid = Balanced, IsEnabled = true }
+        };
+
+        var result = RuleResolver.ResolveActivePlan(
+            runningExeNames: new[] { "bambu-studio.exe" },
+            rules: rules,
+            availablePlanGuids: AllPlans,
+            defaultPlanGuid: DefaultPlan);
+
+        Assert.Equal(Balanced, result);
+    }
+
+    [Fact]
+    public void A_disabled_rule_is_ignored_when_it_is_the_only_match_and_default_plan_is_returned()
+    {
+        var rules = new List<AppRule>
+        {
+            new() { ExeName = "bambu-studio.exe", DisplayName = "Bambu Studio", PlanGuid = HighPerf, IsEnabled = false }
+        };
+
+        var result = RuleResolver.ResolveActivePlan(
+            runningExeNames: new[] { "bambu-studio.exe" },
+            rules: rules,
+            availablePlanGuids: AllPlans,
+            defaultPlanGuid: DefaultPlan);
+
+        Assert.Equal(DefaultPlan, result);
+    }
 }

@@ -192,4 +192,73 @@ public class RuleResolverTests
 
         Assert.Equal(DefaultPlan, result);
     }
+
+    [Fact]
+    public void Resolve_returns_all_matching_enabled_rules_and_the_winner()
+    {
+        var balancedRule = new AppRule { ExeName = "light.exe", DisplayName = "Light", PlanGuid = Balanced };
+        var highPerfRule = new AppRule { ExeName = "heavy.exe", DisplayName = "Heavy", PlanGuid = HighPerf };
+        var scores = new Dictionary<Guid, int> { [HighPerf] = 2, [Balanced] = 1 };
+
+        var result = RuleResolver.Resolve(
+            runningExeNames: new[] { "light.exe", "heavy.exe" },
+            rules: new List<AppRule> { balancedRule, highPerfRule },
+            availablePlanGuids: AllPlans,
+            defaultPlanGuid: DefaultPlan,
+            planPerformanceScores: scores);
+
+        Assert.Equal(new[] { balancedRule, highPerfRule }, result.Matches);
+        Assert.Same(highPerfRule, result.Winner);
+        Assert.Equal(HighPerf, result.PlanGuid);
+    }
+
+    [Fact]
+    public void Resolve_has_no_winner_and_no_matches_when_nothing_runs()
+    {
+        var result = RuleResolver.Resolve(
+            runningExeNames: new[] { "notepad.exe" },
+            rules: new List<AppRule> { new() { ExeName = "bambu-studio.exe", DisplayName = "Bambu Studio", PlanGuid = HighPerf } },
+            availablePlanGuids: AllPlans,
+            defaultPlanGuid: DefaultPlan);
+
+        Assert.Null(result.Winner);
+        Assert.Empty(result.Matches);
+        Assert.Equal(DefaultPlan, result.PlanGuid);
+    }
+
+    [Fact]
+    public void Resolve_excludes_disabled_rules_from_matches()
+    {
+        var disabledRule = new AppRule { ExeName = "bambu-studio.exe", DisplayName = "Bambu Studio", PlanGuid = HighPerf, IsEnabled = false };
+        var enabledRule = new AppRule { ExeName = "bambu-studio.exe", DisplayName = "Bambu Studio (fallback)", PlanGuid = Balanced };
+
+        var result = RuleResolver.Resolve(
+            runningExeNames: new[] { "bambu-studio.exe" },
+            rules: new List<AppRule> { disabledRule, enabledRule },
+            availablePlanGuids: AllPlans,
+            defaultPlanGuid: DefaultPlan);
+
+        Assert.Single(result.Matches);
+        Assert.Same(enabledRule, result.Matches[0]);
+    }
+
+    [Fact]
+    public void Describe_marks_the_winner_with_a_star()
+    {
+        var result = RuleResolver.Resolve(
+            runningExeNames: new[] { "bambu-studio.exe", "notepad.exe" },
+            rules: new List<AppRule>
+            {
+                new() { ExeName = "bambu-studio.exe", DisplayName = "Bambu Studio", PlanGuid = HighPerf },
+                new() { ExeName = "notepad.exe", DisplayName = "Notepad", PlanGuid = Balanced }
+            },
+            availablePlanGuids: AllPlans,
+            defaultPlanGuid: DefaultPlan);
+
+        var lines = result.Describe(_ => "plan");
+
+        Assert.Equal(2, lines.Count);
+        Assert.StartsWith("★ ", lines[0]);
+        Assert.StartsWith("   ", lines[1]);
+    }
 }

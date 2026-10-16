@@ -41,7 +41,7 @@ public partial class App : Application
         _monitor.ActivePlanChanged += OnActivePlanChanged;
         _monitor.Start();
 
-        _trayIconManager = new TrayIconManager(OpenSettings);
+        _trayIconManager = new TrayIconManager(OpenSettings, () => _monitor!.DescribeActiveRules());
         _trayIconManager.Show();
     }
 

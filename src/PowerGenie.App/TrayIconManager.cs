@@ -11,10 +11,12 @@ public sealed class TrayIconManager : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
     private Icon? _currentPlanIcon;
+    private readonly List<ToolStripItem> _activeRuleItems = new();
 
-    public TrayIconManager(Action onOpenSettings)
+    public TrayIconManager(Action onOpenSettings, Func<IReadOnlyList<string>> getActiveRuleLines)
     {
         var contextMenu = new ContextMenuStrip();
+        contextMenu.Opening += (_, _) => ShowActiveRuleLines(contextMenu, getActiveRuleLines());
         contextMenu.Items.Add("Settings", null, (_, _) => onOpenSettings());
         contextMenu.Items.Add("Exit", null, (_, _) => Application.Current.Shutdown());
 
@@ -28,6 +30,28 @@ public sealed class TrayIconManager : IDisposable
     }
 
     public void Show() => _notifyIcon.Visible = true;
+
+    // Rebuilt on every open, so the menu always names the rule(s) behind the current plan.
+    private void ShowActiveRuleLines(ContextMenuStrip menu, IReadOnlyList<string> lines)
+    {
+        foreach (var item in _activeRuleItems)
+        {
+            menu.Items.Remove(item);
+            item.Dispose();
+        }
+        _activeRuleItems.Clear();
+
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var item = new ToolStripMenuItem(lines[i]) { Enabled = false };
+            menu.Items.Insert(i, item);
+            _activeRuleItems.Add(item);
+        }
+
+        var separator = new ToolStripSeparator();
+        menu.Items.Insert(lines.Count, separator);
+        _activeRuleItems.Add(separator);
+    }
 
     // Draws the plan's dot-and-symbol icon so the tray shows which plan is active at a glance,
     // instead of always looking the same regardless of state.

@@ -16,6 +16,7 @@ public sealed class ProcessMonitorService : IDisposable
     private List<PowerPlan> _availablePlans = new();
     private IReadOnlyDictionary<Guid, int> _planScores = new Dictionary<Guid, int>();
     private DateTime _lastPlansRefreshUtc;
+    private volatile RuleResolution? _lastResolution;
 
     // Carries the already-fetched plan list along so subscribers (the tray icon) don't need
     // a second powercfg call just to look up the new plan's name.
@@ -43,6 +44,13 @@ public sealed class ProcessMonitorService : IDisposable
 
     // Scores of the plans in the cached plan list; the tray uses them to pick automatic icons.
     public IReadOnlyDictionary<Guid, int> PlanScores => _planScores;
+
+    // Lines for the tray menu naming the rule(s) behind the active plan.
+    public IReadOnlyList<string> DescribeActiveRules() =>
+        _lastResolution?.Describe(PlanNameFor) ?? new[] { "Detecting..." };
+
+    private string PlanNameFor(Guid planGuid) =>
+        _availablePlans.FirstOrDefault(p => p.Guid == planGuid)?.Name ?? "(deleted plan)";
 
     public void UpdateConfig(AppConfig config) => _config = config;
 
@@ -93,18 +101,19 @@ public sealed class ProcessMonitorService : IDisposable
             var runningExeNames = GetRunningExeNames();
             var availableGuids = new HashSet<Guid>(availablePlans.Select(p => p.Guid));
 
-            var resolvedPlanGuid = RuleResolver.ResolveActivePlan(
+            var resolution = RuleResolver.Resolve(
                 runningExeNames,
                 _config.Rules,
                 availableGuids,
                 _config.DefaultPlanGuid,
                 _planScores);
+            _lastResolution = resolution;
 
-            if (resolvedPlanGuid != Guid.Empty && resolvedPlanGuid != _lastAppliedPlanGuid)
+            if (resolution.PlanGuid != Guid.Empty && resolution.PlanGuid != _lastAppliedPlanGuid)
             {
-                _powerPlanService.SetActivePlan(resolvedPlanGuid);
-                _lastAppliedPlanGuid = resolvedPlanGuid;
-                ActivePlanChanged?.Invoke(resolvedPlanGuid, availablePlans);
+                _powerPlanService.SetActivePlan(resolution.PlanGuid);
+                _lastAppliedPlanGuid = resolution.PlanGuid;
+                ActivePlanChanged?.Invoke(resolution.PlanGuid, availablePlans);
             }
         }
         catch (Exception ex)

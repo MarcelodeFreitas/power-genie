@@ -22,7 +22,11 @@ public partial class App : Application
         base.OnStartup(e);
 
         _logger = new FileLogger(FileLogger.GetDefaultFilePath());
-        SessionEnding += (_, _) => _sessionEnding = true;
+        SessionEnding += (_, _) =>
+        {
+            _sessionEnding = true;
+            _monitor?.Stop();
+        };
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
@@ -100,7 +104,13 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _monitor?.Stop();
-        _monitor?.RestoreDefaultPlan();
+        // Launching powercfg while Windows is shutting down fails with 0xc0000142 and shows an
+        // error popup, so the default plan is only restored on a normal exit.
+        if (!_sessionEnding)
+        {
+            _monitor?.RestoreDefaultPlan();
+        }
+
         _monitor?.Dispose();
         _trayIconManager?.Dispose();
         base.OnExit(e);

@@ -10,9 +10,14 @@ public sealed class ProcessMonitorService : IDisposable
     private readonly System.Timers.Timer _timer;
     private readonly TimeSpan _plansRefreshInterval;
     private readonly Func<DateTime> _utcNowProvider;
+    private readonly GpuPowerService? _gpuPowerService;
 
     private AppConfig _config;
     private Guid? _lastAppliedPlanGuid;
+
+    // The preset the rules chose last. Starts empty so the first tick always applies the rules' choice.
+    private Guid _lastResolvedGpuPresetId;
+    private Guid _appliedGpuPresetId;
     private List<PowerPlan> _availablePlans = new();
     private IReadOnlyDictionary<Guid, int> _planScores = new Dictionary<Guid, int>();
     private DateTime _lastPlansRefreshUtc;
@@ -28,13 +33,15 @@ public sealed class ProcessMonitorService : IDisposable
         AppConfig initialConfig,
         TimeSpan pollInterval,
         TimeSpan? plansRefreshInterval = null,
-        Func<DateTime>? utcNowProvider = null)
+        Func<DateTime>? utcNowProvider = null,
+        GpuPowerService? gpuPowerService = null)
     {
         _powerPlanService = powerPlanService;
         _logger = logger;
         _config = initialConfig;
         _plansRefreshInterval = plansRefreshInterval ?? TimeSpan.FromDays(1);
         _utcNowProvider = utcNowProvider ?? (() => DateTime.UtcNow);
+        _gpuPowerService = gpuPowerService;
 
         RefreshAvailablePlans();
 
@@ -48,6 +55,9 @@ public sealed class ProcessMonitorService : IDisposable
     // Lines for the tray menu naming the rule(s) behind the active plan.
     public IReadOnlyList<string> DescribeActiveRules() =>
         _lastResolution?.Describe(PlanNameFor) ?? new[] { "Detecting..." };
+
+    // The GPU preset currently applied, whether the rules or the tray chose it. Guid.Empty if none yet.
+    public Guid AppliedGpuPresetId => _appliedGpuPresetId;
 
     private string PlanNameFor(Guid planGuid) =>
         _availablePlans.FirstOrDefault(p => p.Guid == planGuid)?.Name ?? "(deleted plan)";
@@ -88,6 +98,34 @@ public sealed class ProcessMonitorService : IDisposable
         }
     }
 
+    // Same idea for the GPU: a rule's high limit isn't left in place once nothing is watching the rules.
+    public void RestoreDefaultGpuPreset()
+    {
+        try
+        {
+            if (_config.GpuPresets.Any(p => p.Id == _config.GpuDefaultPresetId))
+            {
+                ApplyGpuPreset(_config.GpuDefaultPresetId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Restoring the default GPU preset on exit failed", ex);
+        }
+    }
+
+    // Applies a preset now (tray menu). It stays until the rules pick a different preset.
+    public void ApplyGpuPreset(Guid presetId)
+    {
+        if (_gpuPowerService is null)
+        {
+            return;
+        }
+
+        _gpuPowerService.Apply(presetId);
+        _appliedGpuPresetId = presetId;
+    }
+
     internal void Tick()
     {
         try
@@ -115,10 +153,39 @@ public sealed class ProcessMonitorService : IDisposable
                 _lastAppliedPlanGuid = resolution.PlanGuid;
                 ActivePlanChanged?.Invoke(resolution.PlanGuid, availablePlans);
             }
+
+            ApplyGpuRules(runningExeNames);
         }
         catch (Exception ex)
         {
             _logger.LogError("Process monitor tick failed", ex);
+        }
+    }
+
+    // Only acts when the rules' choice changes, so a preset picked from the tray is kept until then.
+    private void ApplyGpuRules(IReadOnlyList<string> runningExeNames)
+    {
+        if (_gpuPowerService is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var presetWatts = _config.GpuPresets.ToDictionary(p => p.Id, p => p.Watts);
+            var presetId = GpuRuleResolver.Resolve(runningExeNames, _config.GpuRules, presetWatts, _config.GpuDefaultPresetId);
+            if (presetId == Guid.Empty || presetId == _lastResolvedGpuPresetId)
+            {
+                return;
+            }
+
+            // Recorded before applying, so a failing task is logged once instead of on every tick.
+            _lastResolvedGpuPresetId = presetId;
+            ApplyGpuPreset(presetId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Applying the GPU power limit failed", ex);
         }
     }
 

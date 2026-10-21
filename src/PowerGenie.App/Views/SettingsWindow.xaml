@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:PowerGenie.App.Views"
-        Title="Power Genie Settings" Height="600" Width="660" MinHeight="540" MinWidth="640"
+        Title="Power Genie Settings" Height="720" Width="660" MinHeight="540" MinWidth="640"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <local:HexToBrushConverter x:Key="HexToBrushConverter"/>
@@ -22,112 +22,199 @@
     </Window.Resources>
     <Grid Margin="12">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*" MinHeight="100"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="Default power plan:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <ComboBox x:Name="DefaultPlanComboBox" Width="260" DisplayMemberPath="Name" SelectionChanged="DefaultPlanComboBox_SelectionChanged"/>
-            <Button x:Name="SyncPlansButton" Content="Sync power plans" Width="120" Margin="8,0,0,0" Click="SyncPlansButton_Click"
-                    ToolTip="The list of power plans is checked once a day automatically. Just created or deleted one in Windows? Click here to see it right away."/>
-        </StackPanel>
+        <TabControl Grid.Row="0">
+            <TabItem Header="Power plans">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*" MinHeight="100"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-        <Grid Grid.Row="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,12">
+                        <TextBlock Text="Default power plan:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="DefaultPlanComboBox" Width="260" DisplayMemberPath="Name" SelectionChanged="DefaultPlanComboBox_SelectionChanged"/>
+                        <Button x:Name="SyncPlansButton" Content="Sync power plans" Width="120" Margin="8,0,0,0" Click="SyncPlansButton_Click"
+                                ToolTip="The list of power plans is checked once a day automatically. Just created or deleted one in Windows? Click here to see it right away."/>
+                    </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,6">
-                <TextBox x:Name="RuleSearchTextBox" Width="260" VerticalContentAlignment="Center"
-                         ToolTip="Search by application, exe name or power plan"
-                         TextChanged="RuleSearchTextBox_TextChanged"/>
-                <ComboBox x:Name="RuleStatusFilterComboBox" Width="110" Margin="8,0,0,0" SelectedIndex="0"
-                          SelectionChanged="RuleStatusFilterComboBox_SelectionChanged">
-                    <ComboBoxItem Content="All"/>
-                    <ComboBoxItem Content="Active"/>
-                    <ComboBoxItem Content="Inactive"/>
-                </ComboBox>
-            </StackPanel>
+                    <Grid Grid.Row="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
 
-            <DataGrid x:Name="RulesGrid" Grid.Row="1" AutoGenerateColumns="False"
-                      CanUserAddRows="False" IsReadOnly="True" SelectionMode="Single"
-                      SelectionChanged="RulesGrid_SelectionChanged">
-                <DataGrid.RowStyle>
-                    <Style TargetType="DataGridRow">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                <Setter Property="Foreground" Value="Gray"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </DataGrid.RowStyle>
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Application" Binding="{Binding DisplayName}" Width="*"/>
-                    <DataGridTextColumn Header="Power Plan" Binding="{Binding PlanName}" Width="*"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="70"/>
-                </DataGrid.Columns>
-            </DataGrid>
+                        <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,6">
+                            <TextBox x:Name="RuleSearchTextBox" Width="260" VerticalContentAlignment="Center"
+                                     ToolTip="Search by application, exe name or power plan"
+                                     TextChanged="RuleSearchTextBox_TextChanged"/>
+                            <ComboBox x:Name="RuleStatusFilterComboBox" Width="110" Margin="8,0,0,0" SelectedIndex="0"
+                                      SelectionChanged="RuleStatusFilterComboBox_SelectionChanged">
+                                <ComboBoxItem Content="All"/>
+                                <ComboBoxItem Content="Active"/>
+                                <ComboBoxItem Content="Inactive"/>
+                            </ComboBox>
+                        </StackPanel>
 
-            <TextBlock x:Name="RulesEmptyText" Grid.Row="1" Foreground="Gray" HorizontalAlignment="Center"
-                       VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed"/>
-        </Grid>
+                        <DataGrid x:Name="RulesGrid" Grid.Row="1" AutoGenerateColumns="False"
+                                  CanUserAddRows="False" IsReadOnly="True" SelectionMode="Single"
+                                  SelectionChanged="RulesGrid_SelectionChanged">
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                            <Setter Property="Foreground" Value="Gray"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.RowStyle>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Application" Binding="{Binding DisplayName}" Width="*"/>
+                                <DataGridTextColumn Header="Power Plan" Binding="{Binding PlanName}" Width="*"/>
+                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="70"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
 
-        <StackPanel Orientation="Horizontal" Grid.Row="2" Margin="0,8,0,0">
-            <Button x:Name="AddRuleButton" Content="Add rule" Width="90" Margin="0,0,8,0" Click="AddRuleButton_Click"/>
-            <Button x:Name="EditRuleButton" Content="Edit rule" Width="90" Margin="0,0,8,0" Click="EditRuleButton_Click"/>
-            <Button x:Name="RemoveRuleButton" Content="Remove rule" Width="90" Click="RemoveRuleButton_Click"/>
-            <Button x:Name="ToggleRuleButton" Content="Disable" Width="90" Margin="8,0,0,0" IsEnabled="False" Click="ToggleRuleButton_Click"/>
-        </StackPanel>
+                        <TextBlock x:Name="RulesEmptyText" Grid.Row="1" Foreground="Gray" HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed"/>
+                    </Grid>
 
-        <Grid Grid.Row="3" Margin="0,16,0,4">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="Tray icons, picked automatically by performance level. Change any you like:" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-            <Button x:Name="EditPlansButton" Grid.Column="1" Content="Edit power plans" Padding="10,2" Click="EditPlansButton_Click"
-                    ToolTip="Open Windows Power Options to create, rename or change power plans."/>
-        </Grid>
+                    <StackPanel Orientation="Horizontal" Grid.Row="2" Margin="0,8,0,0">
+                        <Button x:Name="AddRuleButton" Content="Add rule" Width="90" Margin="0,0,8,0" Click="AddRuleButton_Click"/>
+                        <Button x:Name="EditRuleButton" Content="Edit rule" Width="90" Margin="0,0,8,0" Click="EditRuleButton_Click"/>
+                        <Button x:Name="RemoveRuleButton" Content="Remove rule" Width="90" Click="RemoveRuleButton_Click"/>
+                        <Button x:Name="ToggleRuleButton" Content="Disable" Width="90" Margin="8,0,0,0" IsEnabled="False" Click="ToggleRuleButton_Click"/>
+                    </StackPanel>
 
-        <StackPanel Grid.Row="4">
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                <TextBlock Text="Plan" Width="190" Foreground="Gray"/>
-                <TextBlock Text="Dot color" Width="108" Margin="36,0,0,0" Foreground="Gray"/>
-                <TextBlock Text="Symbol" Width="118" Foreground="Gray"/>
-                <TextBlock Text="Symbol color" Width="108" Foreground="Gray"/>
-            </StackPanel>
-            <!-- Bounded: sizes to content for a few plans, scrolls internally past ~6 rows. -->
-            <ScrollViewer MaxHeight="190" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <ItemsControl x:Name="PlanColorsItemsControl">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
-                                <TextBlock Text="{Binding PlanName}" Width="190" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                           ToolTip="{Binding PlanName}"/>
-                                <Image Source="{Binding Preview}" Width="24" Height="24" Margin="0,0,12,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                                <ComboBox ItemsSource="{Binding ColorOptions}" SelectedItem="{Binding DotColor, Mode=TwoWay}"
-                                          ItemTemplate="{StaticResource ColorItemTemplate}" Width="100" Margin="0,0,8,0"
-                                          SelectionChanged="PlanIconComboBox_SelectionChanged"/>
-                                <ComboBox ItemsSource="{Binding GlyphOptions}" SelectedItem="{Binding Glyph, Mode=TwoWay}"
-                                          ItemTemplate="{StaticResource GlyphItemTemplate}" Width="110" Margin="0,0,8,0"
-                                          SelectionChanged="PlanIconComboBox_SelectionChanged"/>
-                                <ComboBox ItemsSource="{Binding ColorOptions}" SelectedItem="{Binding GlyphColor, Mode=TwoWay}"
-                                          ItemTemplate="{StaticResource ColorItemTemplate}" Width="100"
-                                          SelectionChanged="PlanIconComboBox_SelectionChanged"/>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
-        </StackPanel>
+                    <Grid Grid.Row="3" Margin="0,16,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Tray icons, picked automatically by performance level. Change any you like:" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        <Button x:Name="EditPlansButton" Grid.Column="1" Content="Edit power plans" Padding="10,2" Click="EditPlansButton_Click"
+                                ToolTip="Open Windows Power Options to create, rename or change power plans."/>
+                    </Grid>
 
-        <StackPanel Orientation="Horizontal" Grid.Row="5" Margin="0,16,0,0" HorizontalAlignment="Right">
+                    <StackPanel Grid.Row="4">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <TextBlock Text="Plan" Width="190" Foreground="Gray"/>
+                            <TextBlock Text="Dot color" Width="108" Margin="36,0,0,0" Foreground="Gray"/>
+                            <TextBlock Text="Symbol" Width="118" Foreground="Gray"/>
+                            <TextBlock Text="Symbol color" Width="108" Foreground="Gray"/>
+                        </StackPanel>
+                        <!-- Bounded: sizes to content for a few plans, scrolls internally past ~6 rows. -->
+                        <ScrollViewer MaxHeight="190" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl x:Name="PlanColorsItemsControl">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
+                                            <TextBlock Text="{Binding PlanName}" Width="190" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding PlanName}"/>
+                                            <Image Source="{Binding Preview}" Width="24" Height="24" Margin="0,0,12,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <ComboBox ItemsSource="{Binding ColorOptions}" SelectedItem="{Binding DotColor, Mode=TwoWay}"
+                                                      ItemTemplate="{StaticResource ColorItemTemplate}" Width="100" Margin="0,0,8,0"
+                                                      SelectionChanged="PlanIconComboBox_SelectionChanged"/>
+                                            <ComboBox ItemsSource="{Binding GlyphOptions}" SelectedItem="{Binding Glyph, Mode=TwoWay}"
+                                                      ItemTemplate="{StaticResource GlyphItemTemplate}" Width="110" Margin="0,0,8,0"
+                                                      SelectionChanged="PlanIconComboBox_SelectionChanged"/>
+                                            <ComboBox ItemsSource="{Binding ColorOptions}" SelectedItem="{Binding GlyphColor, Mode=TwoWay}"
+                                                      ItemTemplate="{StaticResource ColorItemTemplate}" Width="100"
+                                                      SelectionChanged="PlanIconComboBox_SelectionChanged"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- Hidden in code when no NVIDIA GPU was found. Its own rules and presets, separate from power plans. -->
+            <TabItem x:Name="GpuTab" Header="GPU">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,8,0,0">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Default GPU preset:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="DefaultGpuPresetComboBox" Width="200" DisplayMemberPath="Name"
+                                      ToolTip="Used whenever no GPU rule matches a running app."
+                                      SelectionChanged="DefaultGpuPresetComboBox_SelectionChanged"/>
+                        </StackPanel>
+                        <TextBlock x:Name="GpuCardText" Foreground="Gray" Margin="0,0,0,12" TextTrimming="CharacterEllipsis"/>
+
+                        <TextBlock Text="Rules: apps that switch the GPU preset" Foreground="Gray" Margin="0,0,0,4"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBox x:Name="GpuRuleSearchTextBox" Width="260" VerticalContentAlignment="Center"
+                                     ToolTip="Search by application, exe name or GPU preset"
+                                     TextChanged="GpuRuleSearchTextBox_TextChanged"/>
+                            <ComboBox x:Name="GpuRuleStatusFilterComboBox" Width="110" Margin="8,0,0,0" SelectedIndex="0"
+                                      SelectionChanged="GpuRuleStatusFilterComboBox_SelectionChanged">
+                                <ComboBoxItem Content="All"/>
+                                <ComboBoxItem Content="Active"/>
+                                <ComboBoxItem Content="Inactive"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <Grid Height="170">
+                            <DataGrid x:Name="GpuRulesGrid" AutoGenerateColumns="False"
+                                      CanUserAddRows="False" IsReadOnly="True" SelectionMode="Single"
+                                      SelectionChanged="GpuRulesGrid_SelectionChanged">
+                                <DataGrid.RowStyle>
+                                    <Style TargetType="DataGridRow">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                <Setter Property="Foreground" Value="Gray"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.RowStyle>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Application" Binding="{Binding DisplayName}" Width="*"/>
+                                    <DataGridTextColumn Header="GPU Preset" Binding="{Binding PresetName}" Width="*"/>
+                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="70"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <TextBlock x:Name="GpuRulesEmptyText" Foreground="Gray" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Add rule" Width="90" Margin="0,0,8,0" Click="AddGpuRuleButton_Click"/>
+                            <Button Content="Edit rule" Width="90" Margin="0,0,8,0" Click="EditGpuRuleButton_Click"/>
+                            <Button Content="Remove rule" Width="90" Click="RemoveGpuRuleButton_Click"/>
+                            <Button x:Name="ToggleGpuRuleButton" Content="Disable" Width="90" Margin="8,0,0,0" IsEnabled="False" Click="ToggleGpuRuleButton_Click"/>
+                        </StackPanel>
+
+                        <TextBlock Text="GPU presets: a name and a power limit" Foreground="Gray" Margin="0,16,0,4"/>
+                        <DataGrid x:Name="PresetsGrid" Height="130" AutoGenerateColumns="False"
+                                  CanUserAddRows="False" IsReadOnly="True" SelectionMode="Single">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                                <DataGridTextColumn Header="Power limit" Binding="{Binding Watts, StringFormat={}{0} W}" Width="110"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Add preset" Width="90" Margin="0,0,8,0" Click="AddGpuPresetButton_Click"/>
+                            <Button Content="Edit preset" Width="90" Margin="0,0,8,0" Click="EditGpuPresetButton_Click"/>
+                            <Button Content="Delete preset" Width="90" Click="RemoveGpuPresetButton_Click"/>
+                        </StackPanel>
+
+                        <TextBlock Foreground="Gray" TextWrapping="Wrap" Margin="0,12,0,0"
+                                   Text="Setting up presets asks for administrator approval. Switching between them afterwards does not."/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="0,8,0,0" HorizontalAlignment="Right">
             <CheckBox x:Name="StartWithWindowsCheckBox" Content="Start with Windows" VerticalAlignment="Center" Margin="0,0,16,0"
                       Checked="StartWithWindowsCheckBox_CheckedChanged" Unchecked="StartWithWindowsCheckBox_CheckedChanged"/>
             <Button x:Name="SaveButton" Content="Save" Width="90" Click="SaveButton_Click"/>

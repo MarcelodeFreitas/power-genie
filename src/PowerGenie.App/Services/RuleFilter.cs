@@ -4,6 +4,8 @@ namespace PowerGenie.App.Services;
 
 public enum RuleStatusFilter { All, Active, Inactive }
 
+// Power plan rules and GPU rules have the same search and filter, written out once per rule type
+// so each section stays self-contained. The matching itself is shared in Matches below.
 public static class RuleFilter
 {
     public static List<AppRule> Apply(
@@ -17,17 +19,12 @@ public static class RuleFilter
         var result = new List<AppRule>();
         foreach (var rule in rules)
         {
-            if (filter == RuleStatusFilter.Active && !rule.IsEnabled)
+            if (!StatusMatches(rule.IsEnabled, filter))
             {
                 continue;
             }
 
-            if (filter == RuleStatusFilter.Inactive && rule.IsEnabled)
-            {
-                continue;
-            }
-
-            if (trimmedQuery.Length > 0 && !Matches(rule, trimmedQuery, planNameLookup))
+            if (trimmedQuery.Length > 0 && !Matches(rule.DisplayName, rule.ExeName, planNameLookup(rule.PlanGuid), trimmedQuery))
             {
                 continue;
             }
@@ -38,11 +35,52 @@ public static class RuleFilter
         return result;
     }
 
-    private static bool Matches(AppRule rule, string query, Func<Guid, string> planNameLookup)
+    public static List<GpuRule> Apply(
+        IEnumerable<GpuRule> rules,
+        string? query,
+        RuleStatusFilter filter,
+        Func<Guid, string> presetNameLookup)
     {
-        return rule.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
-            || rule.ExeName.Contains(query, StringComparison.OrdinalIgnoreCase)
-            || (planNameLookup(rule.PlanGuid) ?? string.Empty)
-                .Contains(query, StringComparison.OrdinalIgnoreCase);
+        var trimmedQuery = query?.Trim() ?? string.Empty;
+
+        var result = new List<GpuRule>();
+        foreach (var rule in rules)
+        {
+            if (!StatusMatches(rule.IsEnabled, filter))
+            {
+                continue;
+            }
+
+            if (trimmedQuery.Length > 0 && !Matches(rule.DisplayName, rule.ExeName, presetNameLookup(rule.PresetId), trimmedQuery))
+            {
+                continue;
+            }
+
+            result.Add(rule);
+        }
+
+        return result;
+    }
+
+    private static bool StatusMatches(bool isEnabled, RuleStatusFilter filter)
+    {
+        if (filter == RuleStatusFilter.Active)
+        {
+            return isEnabled;
+        }
+
+        if (filter == RuleStatusFilter.Inactive)
+        {
+            return !isEnabled;
+        }
+
+        return true;
+    }
+
+    private static bool Matches(string displayName, string exeName, string? targetName, string query)
+    {
+        return displayName.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || exeName.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || (targetName ?? string.Empty).Contains(query, StringComparison.OrdinalIgnoreCase);
     }
 }

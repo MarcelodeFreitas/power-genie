@@ -1,5 +1,6 @@
 using System.Windows;
 using Application = System.Windows.Application;
+using PowerGenie.App.Models;
 using PowerGenie.App.Services;
 using PowerGenie.App.Views;
 
@@ -11,6 +12,8 @@ public partial class App : Application
     private ProcessMonitorService? _monitor;
     private ConfigStore? _configStore;
     private PowerPlanService? _powerPlanService;
+    private GpuPowerService? _gpuPowerService;
+    private GpuCardInfo? _gpuCard;
     private AutoStartManager? _autoStartManager;
     private SettingsWindow? _settingsWindow;
     private FileLogger? _logger;
@@ -37,12 +40,66 @@ public partial class App : Application
 
         _currentConfig = _configStore.Load();
 
-        _monitor = new ProcessMonitorService(_powerPlanService, logger, _currentConfig, TimeSpan.FromSeconds(3));
+        var gpuService = new GpuPowerService();
+        _gpuCard = gpuService.Detect();
+        if (_gpuCard is not null)
+        {
+            _gpuPowerService = gpuService;
+            PrepareGpuPresets();
+        }
+
+        _monitor = new ProcessMonitorService(_powerPlanService, logger, _currentConfig, TimeSpan.FromSeconds(3),
+            gpuPowerService: _gpuPowerService);
         _monitor.ActivePlanChanged += OnActivePlanChanged;
         _monitor.Start();
 
-        _trayIconManager = new TrayIconManager(OpenSettings, () => _monitor!.DescribeActiveRules());
+        var gpuTrayMenu = _gpuCard is null
+            ? null
+            : new GpuTrayMenu(() => _currentConfig!.GpuPresets, () => _monitor!.AppliedGpuPresetId, ApplyGpuPreset);
+        _trayIconManager = new TrayIconManager(OpenSettings, () => _monitor!.DescribeActiveRules(), gpuTrayMenu);
         _trayIconManager.Show();
+    }
+
+    // The presets' scheduled tasks must exist before the first tick applies one. Missing tasks are
+    // registered now, which shows one UAC prompt. If the user declines, the app still starts and the
+    // reason is logged; Settings > GPU asks again when presets are saved.
+    private void PrepareGpuPresets()
+    {
+        if (GpuPresetDefaults.Seed(_currentConfig!, _gpuCard!))
+        {
+            _configStore!.Save(_currentConfig!);
+        }
+
+        try
+        {
+            if (!_gpuPowerService!.AreRegistered(_currentConfig!.GpuPresets)
+                && !_gpuPowerService.Register(_currentConfig.GpuPresets, _gpuCard!))
+            {
+                _logger?.LogError("GPU presets are not set up because administrator approval was declined");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError("Setting up the GPU presets failed", ex);
+        }
+    }
+
+    // Tray menu pick. Failures are shown, since the user is looking at the menu right now.
+    private void ApplyGpuPreset(Guid presetId)
+    {
+        try
+        {
+            _monitor!.ApplyGpuPreset(presetId);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError("Applying a GPU preset from the tray failed", ex);
+            System.Windows.MessageBox.Show(
+                $"Couldn't set the GPU power limit.\n\n{ex.Message}\n\nOpen Settings > GPU and save the presets to set them up again.",
+                "Power Genie",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     private void OpenSettings()
@@ -53,7 +110,7 @@ public partial class App : Application
             return;
         }
 
-        _settingsWindow = new SettingsWindow(_configStore!, _powerPlanService!, _autoStartManager!);
+        _settingsWindow = new SettingsWindow(_configStore!, _powerPlanService!, _autoStartManager!, _gpuPowerService, _gpuCard);
         _settingsWindow.ConfigSaved += config =>
         {
             _currentConfig = config;
@@ -109,6 +166,7 @@ public partial class App : Application
         if (!_sessionEnding)
         {
             _monitor?.RestoreDefaultPlan();
+            _monitor?.RestoreDefaultGpuPreset();
         }
 
         _monitor?.Dispose();

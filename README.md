@@ -20,6 +20,7 @@ Power Genie watches for the apps you actually care about and switches to whateve
 | Edit power plans | One click in Settings opens Windows' own Power Options, where you can create, rename or tweak plans; Power Genie picks up the changes when you come back. |
 | Live tray icon | Shows a dot with a symbol for whichever plan is currently active, with a tooltip naming it. Icons are picked automatically from how performance-oriented each plan is (leaf, balance, lightning, flame), whatever the plans are called. In Settings you can change any plan's dot color, symbol and symbol color. |
 | Background monitoring | Polls every 3 seconds and switches automatically, no manual toggling. |
+| NVIDIA GPU power limit | Only shown when an NVIDIA GPU is found. Presets (Silent and Balanced to start) set the card's power limit in watts, from the tray or automatically per app. Setting up presets asks for administrator approval once; switching afterwards does not. |
 | Start with Windows | Optional, one checkbox. |
 
 ## Download

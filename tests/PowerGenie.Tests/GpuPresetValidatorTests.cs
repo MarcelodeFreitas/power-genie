@@ -5,7 +5,7 @@ namespace PowerGenie.Tests;
 
 public class GpuPresetValidatorTests
 {
-    private static readonly GpuCardInfo Card = new("RTX 3090", 290, 420, 100, 450);
+    private static readonly GpuCardInfo Card = new(0, "GPU-0", "00000000:04:00.0", "NVIDIA GeForce RTX 3090", 290, 420, 100, 450);
 
     [Theory]
     [InlineData(50, 100)]

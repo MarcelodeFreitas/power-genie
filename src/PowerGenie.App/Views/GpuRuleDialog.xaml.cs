@@ -12,6 +12,10 @@ public partial class GpuRuleDialog : Window
     private sealed record SearchResultItem(string DisplayName, string ExeNameOrPath);
 
     private readonly List<GpuPreset> _presets;
+    private readonly IReadOnlyList<GpuCardInfo> _cards;
+
+    // What the preset list shows: the preset's name with its GPU when there are several cards.
+    private sealed record PresetChoice(GpuPreset Preset, string Text);
     private readonly List<SearchResultItem> _installedProgramItems;
     private readonly List<SearchResultItem> _runningProcessItems;
     private readonly bool _isEditMode;
@@ -43,14 +47,16 @@ public partial class GpuRuleDialog : Window
     // existingRule: when set, pre-fills the dialog so an existing rule's exe, display name,
     // and preset can be edited instead of only ever creating a brand new rule.
     // allRules: the rules already configured, used to warn before a new rule duplicates one.
-    public GpuRuleDialog(List<GpuPreset> presets, GpuRule? existingRule = null, IReadOnlyList<GpuRule>? allRules = null)
+    public GpuRuleDialog(List<GpuPreset> presets, IReadOnlyList<GpuCardInfo> cards, GpuRule? existingRule = null, IReadOnlyList<GpuRule>? allRules = null)
     {
         InitializeComponent();
         _presets = presets;
+        _cards = cards;
         _allRules = allRules ?? Array.Empty<GpuRule>();
         _editedRule = existingRule;
         _isEditMode = existingRule is not null;
-        PresetComboBox.ItemsSource = _presets;
+        var choices = presets.Select(p => new PresetChoice(p, GpuPresetText.Name(p, cards))).ToList();
+        PresetComboBox.ItemsSource = choices;
 
         // Editing is always exactly one rule, so it keeps a plain single-select list. Adding gets
         // checkboxes + multi-select so it's visible, without any modifier key, that several apps
@@ -94,7 +100,7 @@ public partial class GpuRuleDialog : Window
             _suppressManualPathTextChanged = false;
 
             DisplayNameTextBox.Text = existingRule.DisplayName;
-            PresetComboBox.SelectedItem = _presets.FirstOrDefault(p => p.Id == existingRule.PresetId);
+            PresetComboBox.SelectedItem = choices.FirstOrDefault(c => c.Preset.Id == existingRule.PresetId);
         }
 
         UpdateOkButtonState();
@@ -442,7 +448,7 @@ public partial class GpuRuleDialog : Window
 
     private void OkButton_Click(object sender, RoutedEventArgs e)
     {
-        if (PresetComboBox.SelectedItem is not GpuPreset selectedPreset)
+        if (PresetComboBox.SelectedItem is not PresetChoice { Preset: var selectedPreset })
         {
             return;
         }
@@ -502,7 +508,9 @@ public partial class GpuRuleDialog : Window
 
         var list = string.Join("\n", conflicts.Select(rule =>
         {
-            var plan = _presets.FirstOrDefault(p => p.Id == rule.PresetId)?.Name ?? "(deleted preset)";
+            var plan = _presets.FirstOrDefault(p => p.Id == rule.PresetId) is { } preset
+                ? GpuPresetText.Name(preset, _cards)
+                : "(deleted preset)";
             return $"  \u2022 {rule.ExeName} \u2192 {plan}";
         }));
 

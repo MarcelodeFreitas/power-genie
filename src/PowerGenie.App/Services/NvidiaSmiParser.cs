@@ -5,27 +5,28 @@ namespace PowerGenie.App.Services;
 
 public static class NvidiaSmiParser
 {
-    // Expects the output of: nvidia-smi --query-gpu=name,power.limit,power.default_limit,power.min_limit,power.max_limit --format=csv,noheader,nounits
-    // Only the first GPU is read. Returns null when there is no line or a value is missing ("[N/A]").
-    public static GpuCardInfo? Parse(string output)
+    // Expects the output of: nvidia-smi --query-gpu=index,uuid,pci.bus_id,name,power.limit,power.default_limit,power.min_limit,power.max_limit --format=csv,noheader,nounits
+    // One card per line. Lines with a missing value ("[N/A]", e.g. an integrated GPU) are skipped.
+    public static List<GpuCardInfo> Parse(string output)
     {
-        var line = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
-        if (line is null)
+        var cards = new List<GpuCardInfo>();
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            return null;
+            var fields = line.Split(',', StringSplitOptions.TrimEntries);
+            if (fields.Length != 8
+                || !int.TryParse(fields[0], NumberStyles.None, CultureInfo.InvariantCulture, out var index)
+                || !TryWatts(fields[4], out var current)
+                || !TryWatts(fields[5], out var defaults)
+                || !TryWatts(fields[6], out var min)
+                || !TryWatts(fields[7], out var max))
+            {
+                continue;
+            }
+
+            cards.Add(new GpuCardInfo(index, fields[1], fields[2], fields[3], current, defaults, min, max));
         }
 
-        var fields = line.Split(',', StringSplitOptions.TrimEntries);
-        if (fields.Length != 5
-            || !TryWatts(fields[1], out var current)
-            || !TryWatts(fields[2], out var defaults)
-            || !TryWatts(fields[3], out var min)
-            || !TryWatts(fields[4], out var max))
-        {
-            return null;
-        }
-
-        return new GpuCardInfo(fields[0], current, defaults, min, max);
+        return cards;
     }
 
     private static bool TryWatts(string text, out int watts)

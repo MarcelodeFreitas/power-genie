@@ -4,38 +4,42 @@ namespace PowerGenie.App.Services;
 
 public static class GpuRuleResolver
 {
-    // Returns the preset to apply, or Guid.Empty to leave the GPU alone. When several running apps
-    // have rules, the highest limit wins, so a demanding app is never held back by a quieter one.
-    // Rules pointing at a deleted preset are skipped, like power plan rules for deleted plans.
-    public static Guid Resolve(
+    // Returns the preset to apply to each GPU, keyed by GPU UUID. A GPU missing from the result is left
+    // alone. Per GPU, when several running apps have rules, the highest limit wins, so a demanding app is
+    // never held back by a quieter one. Without a matching rule, a GPU gets its saved default preset
+    // if it has one. Rules pointing at a deleted preset are skipped.
+    public static Dictionary<string, Guid> Resolve(
         IReadOnlyList<string> runningExeNames,
         IReadOnlyList<GpuRule> rules,
-        IReadOnlyDictionary<Guid, int> presetWatts,
-        Guid defaultPresetId)
+        IReadOnlyList<GpuPreset> presets,
+        IReadOnlyDictionary<string, Guid> defaultPresetIds)
     {
         var running = new HashSet<string>(runningExeNames, StringComparer.OrdinalIgnoreCase);
-        var bestPresetId = Guid.Empty;
-        var bestWatts = int.MinValue;
+        var presetById = presets.ToDictionary(p => p.Id);
+        var winners = new Dictionary<string, GpuPreset>();
 
         foreach (var rule in rules)
         {
-            if (!rule.IsEnabled || !running.Contains(rule.ExeName))
+            if (!rule.IsEnabled || !running.Contains(rule.ExeName) || !presetById.TryGetValue(rule.PresetId, out var preset))
             {
                 continue;
             }
 
-            if (presetWatts.TryGetValue(rule.PresetId, out var watts) && watts > bestWatts)
+            if (!winners.TryGetValue(preset.GpuUuid, out var best) || preset.Watts > best.Watts)
             {
-                bestPresetId = rule.PresetId;
-                bestWatts = watts;
+                winners[preset.GpuUuid] = preset;
             }
         }
 
-        if (bestPresetId != Guid.Empty)
+        var result = winners.ToDictionary(pair => pair.Key, pair => pair.Value.Id);
+        foreach (var (uuid, presetId) in defaultPresetIds)
         {
-            return bestPresetId;
+            if (!result.ContainsKey(uuid) && presetById.TryGetValue(presetId, out var preset) && preset.GpuUuid == uuid)
+            {
+                result[uuid] = presetId;
+            }
         }
 
-        return presetWatts.ContainsKey(defaultPresetId) ? defaultPresetId : Guid.Empty;
+        return result;
     }
 }

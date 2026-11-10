@@ -17,7 +17,7 @@ public partial class SettingsWindow : Window
     private readonly ObservableCollection<RuleRow> _ruleRows = new();
     private readonly ObservableCollection<GpuRuleRow> _gpuRuleRows = new();
     private readonly GpuPowerService? _gpuService;
-    private readonly GpuCardInfo? _gpuCard;
+    private readonly IReadOnlyList<GpuCardInfo> _gpuCards;
 
     // Set when a GPU preset changed, so PerformSave re-registers the tasks that apply them.
     private bool _gpuTasksDirty;
@@ -40,24 +40,22 @@ public partial class SettingsWindow : Window
         PowerPlanService powerPlanService,
         AutoStartManager autoStartManager,
         GpuPowerService? gpuService,
-        GpuCardInfo? gpuCard)
+        IReadOnlyList<GpuCardInfo> gpuCards)
     {
         InitializeComponent();
         _configStore = configStore;
         _powerPlanService = powerPlanService;
         _autoStartManager = autoStartManager;
         _gpuService = gpuService;
-        _gpuCard = gpuCard;
+        _gpuCards = gpuCards;
 
         RulesGrid.ItemsSource = _ruleRows;
         GpuRulesGrid.ItemsSource = _gpuRuleRows;
 
         // Without an NVIDIA GPU the whole GPU tab is hidden, as if the feature did not exist.
-        GpuTab.Visibility = gpuCard is null ? Visibility.Collapsed : Visibility.Visible;
-        if (gpuCard is not null)
-        {
-            GpuCardText.Text = $"{gpuCard.Name}: limit {gpuCard.MinWatts}-{gpuCard.MaxWatts} W, default {gpuCard.DefaultWatts} W";
-        }
+        GpuTab.Visibility = gpuCards.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        GpuCardText.Text = string.Join(Environment.NewLine, gpuCards.Select(card =>
+            $"{card.Label}: limit {card.MinWatts}-{card.MaxWatts} W, default {card.DefaultWatts} W"));
 
         LoadState();
     }
@@ -360,11 +358,6 @@ public partial class SettingsWindow : Window
             _config.DefaultPlanGuid = selectedDefault.Guid;
         }
 
-        if (DefaultGpuPresetComboBox.SelectedItem is GpuPreset selectedGpuDefault)
-        {
-            _config.GpuDefaultPresetId = selectedGpuDefault.Id;
-        }
-
         _config.StartWithWindows = StartWithWindowsCheckBox.IsChecked == true;
 
         // Only customized plans are stored; the rest stay automatic.
@@ -391,15 +384,26 @@ public partial class SettingsWindow : Window
         (RuleStatusFilter)Math.Max(0, GpuRuleStatusFilterComboBox.SelectedIndex);
 
     private string GpuPresetNameFor(Guid presetId) =>
-        _config.GpuPresets.FirstOrDefault(p => p.Id == presetId)?.Name ?? "(deleted preset)";
+        _config.GpuPresets.FirstOrDefault(p => p.Id == presetId) is { } preset
+            ? GpuPresetText.Name(preset, _gpuCards)
+            : "(deleted preset)";
+
+    private string GpuLabelFor(string gpuUuid) =>
+        _gpuCards.FirstOrDefault(c => c.Uuid == gpuUuid)?.Label ?? "(missing GPU)";
+
+    private bool IsDefaultGpuPreset(GpuPreset preset) =>
+        _config.GpuDefaultPresetIds.TryGetValue(preset.GpuUuid, out var defaultId)
+            ? defaultId == preset.Id
+            : preset.IsOriginal;
 
     private void RefreshGpu()
     {
-        var presets = _config.GpuPresets.ToList();
-        DefaultGpuPresetComboBox.ItemsSource = presets;
-        DefaultGpuPresetComboBox.SelectedItem = presets.FirstOrDefault(p => p.Id == _config.GpuDefaultPresetId)
-            ?? presets.FirstOrDefault();
-        PresetsGrid.ItemsSource = presets;
+        PresetsGrid.ItemsSource = _config.GpuPresets.Select(preset => new GpuPresetRow
+        {
+            Preset = preset,
+            GpuLabel = GpuLabelFor(preset.GpuUuid),
+            IsDefault = IsDefaultGpuPreset(preset),
+        }).ToList();
 
         RefreshGpuRuleRows();
     }
@@ -479,17 +483,9 @@ public partial class SettingsWindow : Window
         UpdateGpuToggleButton();
     }
 
-    private void DefaultGpuPresetComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
-    {
-        if (!_isLoading)
-        {
-            _hasUnsavedChanges = true;
-        }
-    }
-
     private void AddGpuRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new GpuRuleDialog(_config.GpuPresets, allRules: _config.GpuRules) { Owner = this };
+        var dialog = new GpuRuleDialog(_config.GpuPresets, _gpuCards, allRules: _config.GpuRules) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.CreatedRules.Count > 0)
         {
             GpuRuleListEditor.AddOrReplace(_config.GpuRules, dialog.CreatedRules);
@@ -513,7 +509,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var dialog = new GpuRuleDialog(_config.GpuPresets, _config.GpuRules[index], _config.GpuRules) { Owner = this };
+        var dialog = new GpuRuleDialog(_config.GpuPresets, _gpuCards, _config.GpuRules[index], _config.GpuRules) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.CreatedRules.Count > 0)
         {
             // The dialog does not know about the enabled flag, so carry the current state over.
@@ -558,7 +554,7 @@ public partial class SettingsWindow : Window
 
     private void AddGpuPresetButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new GpuPresetDialog(_gpuCard!, null) { Owner = this };
+        var dialog = new GpuPresetDialog(_gpuCards, null) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.Preset is { } preset)
         {
             _config.GpuPresets.Add(preset);
@@ -568,8 +564,14 @@ public partial class SettingsWindow : Window
 
     private void EditGpuPresetButton_Click(object sender, RoutedEventArgs e)
     {
-        if (PresetsGrid.SelectedItem is not GpuPreset existing)
+        if (PresetsGrid.SelectedItem is not GpuPresetRow { Preset: var existing })
         {
+            return;
+        }
+
+        if (existing.IsOriginal)
+        {
+            ShowOriginalIsLocked();
             return;
         }
 
@@ -579,7 +581,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var dialog = new GpuPresetDialog(_gpuCard!, existing) { Owner = this };
+        var dialog = new GpuPresetDialog(_gpuCards, existing) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.Preset is { } edited)
         {
             _config.GpuPresets[index] = edited;
@@ -589,8 +591,14 @@ public partial class SettingsWindow : Window
 
     private void RemoveGpuPresetButton_Click(object sender, RoutedEventArgs e)
     {
-        if (PresetsGrid.SelectedItem is not GpuPreset existing)
+        if (PresetsGrid.SelectedItem is not GpuPresetRow { Preset: var existing })
         {
+            return;
+        }
+
+        if (existing.IsOriginal)
+        {
+            ShowOriginalIsLocked();
             return;
         }
 
@@ -598,6 +606,27 @@ public partial class SettingsWindow : Window
         _config.GpuPresets.Remove(existing);
         GpuPresetsChanged();
     }
+
+    // The default is stored per GPU, so the selected preset becomes the default for its own GPU.
+    private void SetDefaultGpuPresetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (PresetsGrid.SelectedItem is not GpuPresetRow { Preset: var preset })
+        {
+            return;
+        }
+
+        _config.GpuDefaultPresetIds[preset.GpuUuid] = preset.Id;
+        RefreshGpu();
+        PerformSave();
+    }
+
+    private void ShowOriginalIsLocked() =>
+        System.Windows.MessageBox.Show(
+            this,
+            "The original preset is the GPU's stock limit and can't be changed or deleted.",
+            "Power Genie",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
 
     // Presets save straight away, like rules do. The tasks that apply them are re-registered in PerformSave.
     private void GpuPresetsChanged()
@@ -610,15 +639,20 @@ public partial class SettingsWindow : Window
     // Shows the UAC prompt only when presets changed. Declining keeps the presets saved and asks again on the next save.
     private void RegisterGpuTasksIfDirty()
     {
-        if (!_gpuTasksDirty || _gpuService is null || _gpuCard is null)
+        if (!_gpuTasksDirty || _gpuService is null || _gpuCards.Count == 0)
         {
             return;
         }
 
         try
         {
-            _gpuTasksDirty = !_gpuService.Register(_config.GpuPresets, _gpuCard);
-            if (_gpuTasksDirty)
+            _gpuTasksDirty = !_gpuService.Register(_config.GpuPresets, _gpuCards);
+            if (!_gpuTasksDirty)
+            {
+                _config.GpuTaskVersion = GpuTasks.Version;
+                _configStore.Save(_config);
+            }
+            else
             {
                 System.Windows.MessageBox.Show(
                     this,

@@ -15,7 +15,7 @@ public class GpuPowerService
     private static readonly string SchtasksPath = Path.Combine(Environment.SystemDirectory, "schtasks.exe");
     private static readonly string PowerShellPath = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
 
-    private const string QueryArgument = "--query-gpu=name,power.limit,power.default_limit,power.min_limit,power.max_limit";
+    private const string QueryArgument = "--query-gpu=index,uuid,pci.bus_id,name,power.limit,power.default_limit,power.min_limit,power.max_limit";
     private const string FormatArgument = "--format=csv,noheader,nounits";
 
     // Returned by Win32 when the user clicks "No" on the UAC prompt.
@@ -23,13 +23,13 @@ public class GpuPowerService
 
     private string? _nvidiaSmiPath;
 
-    // Null when there is no NVIDIA GPU, so the whole GPU part of the app stays hidden.
-    public virtual GpuCardInfo? Detect()
+    // Empty when there is no NVIDIA GPU, so the whole GPU part of the app stays hidden.
+    public virtual IReadOnlyList<GpuCardInfo> Detect()
     {
         _nvidiaSmiPath = FindNvidiaSmi();
         if (_nvidiaSmiPath is null)
         {
-            return null;
+            return Array.Empty<GpuCardInfo>();
         }
 
         try
@@ -38,7 +38,7 @@ public class GpuPowerService
         }
         catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
         {
-            return null;
+            return Array.Empty<GpuCardInfo>();
         }
     }
 
@@ -65,14 +65,15 @@ public class GpuPowerService
 
     // Creates or updates one task per preset and removes the tasks of deleted presets. Shows one UAC
     // prompt. Returns false if the user declines it; throws if the elevated script fails.
-    public virtual bool Register(IReadOnlyList<GpuPreset> presets, GpuCardInfo card)
+    public virtual bool Register(IReadOnlyList<GpuPreset> presets, IReadOnlyList<GpuCardInfo> cards)
     {
         if (_nvidiaSmiPath is null)
         {
             throw new InvalidOperationException("nvidia-smi was not found.");
         }
 
-        var script = GpuTasks.BuildRegisterScript(presets, card, _nvidiaSmiPath, WindowsIdentity.GetCurrent().Name);
+        Directory.CreateDirectory(Path.GetDirectoryName(GpuTasks.LogFilePath)!);
+        var script = GpuTasks.BuildRegisterScript(presets, cards, _nvidiaSmiPath, WindowsIdentity.GetCurrent().Name, GpuTasks.LogFilePath);
         var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
 
         var startInfo = new ProcessStartInfo(PowerShellPath)

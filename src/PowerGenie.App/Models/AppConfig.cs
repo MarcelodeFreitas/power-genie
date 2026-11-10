@@ -12,8 +12,11 @@ public sealed class AppConfig
     // GPU power limits. Separate from the Windows power plan settings above.
     public List<GpuPreset> GpuPresets { get; set; } = new();
     public List<GpuRule> GpuRules { get; set; } = new();
-    public Guid GpuDefaultPresetId { get; set; }
 
-    // Set once the shipped Silent and Balanced presets were added, so deleting them sticks.
-    public bool GpuPresetsSeeded { get; set; }
+    // The preset each GPU returns to on exit, and keeps while no rule applies, keyed by GPU UUID.
+    // A GPU without an entry returns to its original preset.
+    public Dictionary<string, Guid> GpuDefaultPresetIds { get; set; } = new();
+
+    // The GpuTasks.Version the scheduled tasks were registered with. Older values trigger a re-register.
+    public int GpuTaskVersion { get; set; }
 }

@@ -1,10 +1,11 @@
 <Window x:Class="PowerGenie.App.Views.GpuPresetDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="GPU preset" Height="230" Width="380"
+        Title="GPU preset" Height="270" Width="380"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
     <Grid Margin="12">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -13,21 +14,28 @@
         </Grid.RowDefinitions>
 
         <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock Text="GPU:" Width="110" VerticalAlignment="Center"/>
+            <ComboBox x:Name="GpuComboBox" Width="220" DisplayMemberPath="Label"
+                      ToolTip="The preset sets this GPU. It can't be changed once rules use the preset."
+                      SelectionChanged="GpuComboBox_SelectionChanged"/>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="0,0,0,8">
             <TextBlock Text="Name:" Width="110" VerticalAlignment="Center"/>
             <TextBox x:Name="NameTextBox" Width="220" MaxLength="32" VerticalContentAlignment="Center"/>
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="0,0,0,4">
+        <StackPanel Orientation="Horizontal" Grid.Row="2" Margin="0,0,0,4">
             <TextBlock Text="Power limit (W):" Width="110" VerticalAlignment="Center"/>
             <TextBox x:Name="WattsTextBox" Width="100" VerticalContentAlignment="Center"/>
         </StackPanel>
 
-        <TextBlock x:Name="RangeText" Grid.Row="2" Foreground="Gray" Margin="110,0,0,0"
+        <TextBlock x:Name="RangeText" Grid.Row="3" Foreground="Gray" Margin="110,0,0,0"
                    ToolTip="Values outside this range are set to the nearest limit."/>
 
-        <TextBlock x:Name="ErrorText" Grid.Row="3" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,8,0,0"/>
+        <TextBlock x:Name="ErrorText" Grid.Row="4" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,8,0,0"/>
 
-        <StackPanel Orientation="Horizontal" Grid.Row="4" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Orientation="Horizontal" Grid.Row="5" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="Cancel" Width="80" Margin="0,0,8,0" IsCancel="True"/>
             <Button Content="OK" Width="80" IsDefault="True" Click="OkButton_Click"/>
         </StackPanel>

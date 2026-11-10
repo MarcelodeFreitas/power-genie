@@ -68,7 +68,7 @@
 
         <StackPanel Orientation="Horizontal" Grid.Row="5" Margin="0,8,0,0">
             <TextBlock Text="GPU preset:" VerticalAlignment="Center" Width="90"/>
-            <ComboBox x:Name="PresetComboBox" Width="260" DisplayMemberPath="Name" SelectionChanged="PresetComboBox_SelectionChanged"/>
+            <ComboBox x:Name="PresetComboBox" Width="260" DisplayMemberPath="Text" SelectionChanged="PresetComboBox_SelectionChanged"/>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Grid.Row="6" HorizontalAlignment="Right" Margin="0,12,0,0">

@@ -15,9 +15,10 @@ public sealed class ProcessMonitorService : IDisposable
     private AppConfig _config;
     private Guid? _lastAppliedPlanGuid;
 
-    // The preset the rules chose last. Starts empty so the first tick always applies the rules' choice.
-    private Guid _lastResolvedGpuPresetId;
-    private Guid _appliedGpuPresetId;
+    // Per GPU UUID: the preset the rules chose last (starts empty, so the first tick applies the rules'
+    // choice), and the preset currently applied, whether the rules or the tray chose it.
+    private readonly Dictionary<string, Guid> _lastResolvedGpuPresets = new();
+    private readonly Dictionary<string, Guid> _appliedGpuPresets = new();
     private List<PowerPlan> _availablePlans = new();
     private IReadOnlyDictionary<Guid, int> _planScores = new Dictionary<Guid, int>();
     private DateTime _lastPlansRefreshUtc;
@@ -56,8 +57,8 @@ public sealed class ProcessMonitorService : IDisposable
     public IReadOnlyList<string> DescribeActiveRules() =>
         _lastResolution?.Describe(PlanNameFor) ?? new[] { "Detecting..." };
 
-    // The GPU preset currently applied, whether the rules or the tray chose it. Guid.Empty if none yet.
-    public Guid AppliedGpuPresetId => _appliedGpuPresetId;
+    // The preset currently applied to one GPU, whether the rules or the tray chose it. Guid.Empty if none yet.
+    public Guid AppliedGpuPresetIdFor(string gpuUuid) => _appliedGpuPresets.GetValueOrDefault(gpuUuid);
 
     private string PlanNameFor(Guid planGuid) =>
         _availablePlans.FirstOrDefault(p => p.Guid == planGuid)?.Name ?? "(deleted plan)";
@@ -98,23 +99,29 @@ public sealed class ProcessMonitorService : IDisposable
         }
     }
 
-    // Same idea for the GPU: a rule's high limit isn't left in place once nothing is watching the rules.
-    public void RestoreDefaultGpuPreset()
+    // Same idea for the GPUs: a rule's high limit isn't left in place once nothing is watching the rules.
+    // Each GPU returns to its saved default, or to its original preset when it has none. Each GPU is
+    // handled separately, so one failing does not stop the others.
+    public void RestoreDefaultGpuPresets()
     {
-        try
+        foreach (var original in _config.GpuPresets.Where(p => p.IsOriginal).ToList())
         {
-            if (_config.GpuPresets.Any(p => p.Id == _config.GpuDefaultPresetId))
+            try
             {
-                ApplyGpuPreset(_config.GpuDefaultPresetId);
+                var presetId = _config.GpuDefaultPresetIds.TryGetValue(original.GpuUuid, out var chosen)
+                    && _config.GpuPresets.Any(p => p.Id == chosen && p.GpuUuid == original.GpuUuid)
+                    ? chosen
+                    : original.Id;
+                ApplyGpuPreset(presetId);
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError("Restoring the default GPU preset on exit failed", ex);
+            catch (Exception ex)
+            {
+                _logger.LogError("Restoring the default GPU preset on exit failed", ex);
+            }
         }
     }
 
-    // Applies a preset now (tray menu). It stays until the rules pick a different preset.
+    // Applies a preset now (tray menu). It stays until the rules pick a different preset for that GPU.
     public void ApplyGpuPreset(Guid presetId)
     {
         if (_gpuPowerService is null)
@@ -122,8 +129,14 @@ public sealed class ProcessMonitorService : IDisposable
             return;
         }
 
+        var preset = _config.GpuPresets.FirstOrDefault(p => p.Id == presetId);
+        if (preset is null)
+        {
+            return;
+        }
+
         _gpuPowerService.Apply(presetId);
-        _appliedGpuPresetId = presetId;
+        _appliedGpuPresets[preset.GpuUuid] = presetId;
     }
 
     internal void Tick()
@@ -162,7 +175,7 @@ public sealed class ProcessMonitorService : IDisposable
         }
     }
 
-    // Only acts when the rules' choice changes, so a preset picked from the tray is kept until then.
+    // Per GPU, only acts when the rules' choice changes, so a preset picked from the tray is kept until then.
     private void ApplyGpuRules(IReadOnlyList<string> runningExeNames)
     {
         if (_gpuPowerService is null)
@@ -170,22 +183,24 @@ public sealed class ProcessMonitorService : IDisposable
             return;
         }
 
-        try
+        var choices = GpuRuleResolver.Resolve(runningExeNames, _config.GpuRules, _config.GpuPresets, _config.GpuDefaultPresetIds);
+        foreach (var (gpuUuid, presetId) in choices)
         {
-            var presetWatts = _config.GpuPresets.ToDictionary(p => p.Id, p => p.Watts);
-            var presetId = GpuRuleResolver.Resolve(runningExeNames, _config.GpuRules, presetWatts, _config.GpuDefaultPresetId);
-            if (presetId == Guid.Empty || presetId == _lastResolvedGpuPresetId)
+            if (_lastResolvedGpuPresets.GetValueOrDefault(gpuUuid) == presetId)
             {
-                return;
+                continue;
             }
 
             // Recorded before applying, so a failing task is logged once instead of on every tick.
-            _lastResolvedGpuPresetId = presetId;
-            ApplyGpuPreset(presetId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError("Applying the GPU power limit failed", ex);
+            _lastResolvedGpuPresets[gpuUuid] = presetId;
+            try
+            {
+                ApplyGpuPreset(presetId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Applying the GPU power limit failed", ex);
+            }
         }
     }
 

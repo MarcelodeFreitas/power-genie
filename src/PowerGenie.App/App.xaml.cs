@@ -13,7 +13,7 @@ public partial class App : Application
     private ConfigStore? _configStore;
     private PowerPlanService? _powerPlanService;
     private GpuPowerService? _gpuPowerService;
-    private GpuCardInfo? _gpuCard;
+    private IReadOnlyList<GpuCardInfo> _gpuCards = Array.Empty<GpuCardInfo>();
     private AutoStartManager? _autoStartManager;
     private SettingsWindow? _settingsWindow;
     private FileLogger? _logger;
@@ -41,8 +41,8 @@ public partial class App : Application
         _currentConfig = _configStore.Load();
 
         var gpuService = new GpuPowerService();
-        _gpuCard = gpuService.Detect();
-        if (_gpuCard is not null)
+        _gpuCards = gpuService.Detect();
+        if (_gpuCards.Count > 0)
         {
             _gpuPowerService = gpuService;
             PrepareGpuPresets();
@@ -53,9 +53,13 @@ public partial class App : Application
         _monitor.ActivePlanChanged += OnActivePlanChanged;
         _monitor.Start();
 
-        var gpuTrayMenu = _gpuCard is null
+        var gpuTrayMenu = _gpuCards.Count == 0
             ? null
-            : new GpuTrayMenu(() => _currentConfig!.GpuPresets, () => _monitor!.AppliedGpuPresetId, ApplyGpuPreset);
+            : new GpuTrayMenu(
+                () => _gpuCards,
+                () => _currentConfig!.GpuPresets,
+                gpuUuid => _monitor!.AppliedGpuPresetIdFor(gpuUuid),
+                ApplyGpuPreset);
         _trayIconManager = new TrayIconManager(OpenSettings, () => _monitor!.DescribeActiveRules(), gpuTrayMenu);
         _trayIconManager.Show();
     }
@@ -65,17 +69,27 @@ public partial class App : Application
     // reason is logged; Settings > GPU asks again when presets are saved.
     private void PrepareGpuPresets()
     {
-        if (GpuPresetDefaults.Seed(_currentConfig!, _gpuCard!))
+        if (GpuPresetDefaults.Reconcile(_currentConfig!, _gpuCards))
         {
             _configStore!.Save(_currentConfig!);
         }
 
         try
         {
-            if (!_gpuPowerService!.AreRegistered(_currentConfig!.GpuPresets)
-                && !_gpuPowerService.Register(_currentConfig.GpuPresets, _gpuCard!))
+            var config = _currentConfig!;
+            var service = _gpuPowerService!;
+            var outdated = config.GpuTaskVersion != GpuTasks.Version;
+            if (outdated || !service.AreRegistered(config.GpuPresets))
             {
-                _logger?.LogError("GPU presets are not set up because administrator approval was declined");
+                if (service.Register(config.GpuPresets, _gpuCards))
+                {
+                    config.GpuTaskVersion = GpuTasks.Version;
+                    _configStore!.Save(config);
+                }
+                else
+                {
+                    _logger?.LogError("GPU presets are not set up because administrator approval was declined");
+                }
             }
         }
         catch (Exception ex)
@@ -110,7 +124,7 @@ public partial class App : Application
             return;
         }
 
-        _settingsWindow = new SettingsWindow(_configStore!, _powerPlanService!, _autoStartManager!, _gpuPowerService, _gpuCard);
+        _settingsWindow = new SettingsWindow(_configStore!, _powerPlanService!, _autoStartManager!, _gpuPowerService, _gpuCards);
         _settingsWindow.ConfigSaved += config =>
         {
             _currentConfig = config;
@@ -166,7 +180,7 @@ public partial class App : Application
         if (!_sessionEnding)
         {
             _monitor?.RestoreDefaultPlan();
-            _monitor?.RestoreDefaultGpuPreset();
+            _monitor?.RestoreDefaultGpuPresets();
         }
 
         _monitor?.Dispose();
